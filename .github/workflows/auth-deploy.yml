@@ -1,0 +1,51 @@
+name: Deploy Auth Service
+on:
+  push:
+    branches: [ main ]
+    paths: [ 'authService/**', 'k8s/production/auth-service/**' ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+
+      - name: Login to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & Push
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker build -t $ECR_REGISTRY/dineflow-auth:latest ./authService
+          docker push $ECR_REGISTRY/dineflow-auth:latest
+
+      - name: Update KubeConfig
+        run: |
+          aws eks update-kubeconfig --name dineflow-production-cluster --region ap-south-1
+
+      - name: Deploy to EKS and Restart Pods
+        run: |
+          kubectl apply -f k8s/production/auth-service/auth-deployment.yaml -n dineflow-production
+        
+          kubectl rollout restart deployment auth-service -n dineflow-production
+          kubectl rollout restart deployment auth-table-session-consumer -n dineflow-production
+          
+          # 🚀 1. Wait for the new pods to fully boot up and pass health checks
+          kubectl rollout status deployment auth-service -n dineflow-production
+          
+          # 🚀 2. Dynamically find the name of the newly running Auth pod
+          AUTH_POD=$(kubectl get pods -n dineflow-production -l app=auth-service -o jsonpath="{.items[0].metadata.name}")
+          
+          # 🚀 3. Execute the Django migration directly inside that pod
+          echo "Running database migrations on pod: $AUTH_POD"
+          kubectl exec $AUTH_POD -n dineflow-production -- python manage.py migrate

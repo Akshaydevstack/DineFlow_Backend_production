@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cart-service
+  namespace: dineflow-dev
+spec:
+  replicas: 1
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+
+  selector:
+    matchLabels:
+      app: cart-service
+
+  template:
+    metadata:
+      labels:
+        app: cart-service
+
+    spec:
+      initContainers:
+        - name: init-cart-db
+          image: postgres:15
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PGPASSWORD
+              value: postgres
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for Cart DB..."
+              until pg_isready -h cart-db -U postgres; do
+                sleep 2
+              done
+
+      containers:
+        - name: cart-service
+          image: dineflow/cart-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8000
+
+          env:
+            - name: K8S_ENV
+              value: "true"
+
+            - name: DJANGO_SETTINGS_MODULE
+              value: cart_service.settings
+
+            - name: REDIS_HOST
+              value: redis
+            - name: REDIS_PORT
+              value: "6379"
+
+            - name: DB_NAME
+              value: cart_db
+            - name: DB_USER
+              value: postgres
+            - name: DB_PASSWORD
+              value: postgres
+            - name: DB_HOST
+              value: cart-db
+            - name: DB_PORT
+              value: "5432"
+
+            - name: MENU_SERVICE_URL
+              value: http://menu-service.dineflow-dev.svc.cluster.local:8000
+
+          readinessProbe:
+            httpGet:
+              path: /health/
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+
+          livenessProbe:
+            httpGet:
+              path: /health/
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cart-service
+  namespace: dineflow-dev
+spec:
+  selector:
+    app: cart-service
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+  type: ClusterIP

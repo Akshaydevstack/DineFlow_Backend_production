@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-email-consumer
+  namespace: dineflow-dev
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: notification-email-consumer
+
+  template:
+    metadata:
+      labels:
+        app: notification-email-consumer
+
+    spec:
+      containers:
+        - name: notification-email-consumer
+          image: dineflow_backend-notification_service:latest
+          imagePullPolicy: Never
+
+          command:
+            - python
+            - manage.py
+            - consume_welcome_emails
+
+          env:
+            # Kafka
+            - name: KAFKA_BROKER
+              value: "host.docker.internal:9092"
+
+            # AWS (from secret)
+            - name: AWS_REGION
+              value: "ap-south-1"

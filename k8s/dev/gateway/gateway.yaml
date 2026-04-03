@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: dineflow-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+    spec:
+      containers:
+        - name: nginx
+          image: dineflow-nginx:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 80
+
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/custom_nginx.conf
+              subPath: custom_nginx.conf
+
+            - name: jwt-public-key
+              mountPath: /etc/nginx/jwt/public.pem
+              subPath: public.pem
+              readOnly: true
+
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: nginx-config
+
+        - name: jwt-public-key
+          secret:
+            secretName: jwt-public-key
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  namespace: dineflow-dev
+spec:
+  type: NodePort
+  selector:
+    app: gateway
+  ports:
+    - port: 80
+      targetPort: 80
+      nodePort: 30080

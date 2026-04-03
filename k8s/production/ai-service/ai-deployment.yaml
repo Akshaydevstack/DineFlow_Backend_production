@@ -1,0 +1,261 @@
+# ==========================================
+# 1. AI Kafka Consumer Deployment
+# ==========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-kafka-consumer
+  namespace: dineflow-production
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-kafka-consumer
+  template:
+    metadata:
+      labels:
+        app: ai-kafka-consumer
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: consumer
+          image: 332704998262.dkr.ecr.ap-south-1.amazonaws.com/dineflow-ai:latest
+          imagePullPolicy: Always 
+          command:
+            - python
+            - -c
+            - "from app.kafka.menu_consumer import consume_events; consume_events()"
+
+          env:
+            # --- Kafka ---
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+
+            # --- Postgres (Points to RDS) ---
+            - name: POSTGRES_DB
+              value: "ai_db" # Points to the specific database we created
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+            - name: POSTGRES_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: POSTGRES_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_PORT
+
+            # --- Redis (Points to ElastiCache) ---
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_PORT
+
+            # --- API Keys ---
+            - name: GROQ_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: groq-credentials
+                  key: GROQ_API_KEY
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+---
+# ==========================================
+# 2. AI Service API Deployment
+# ==========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-service
+  namespace: dineflow-production 
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: ai-service
+  template:
+    metadata:
+      labels:
+        app: ai-service
+    spec:
+      # 🚀 THE FIX: Forces this pod to ONLY run on the AI-labeled server 
+      # with the 30GB+ disk drive to prevent ephemeral storage crashes
+      nodeSelector:
+        workload-type: "ai-heavy"
+        
+      containers:
+        - name: ai-service
+          image: 332704998262.dkr.ecr.ap-south-1.amazonaws.com/dineflow-ai:latest
+          imagePullPolicy: Always 
+          ports:
+            - containerPort: 8001
+
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "3.5Gi"
+              cpu: "2000m"
+
+          env:
+            - name: K8S_ENV
+              value: "true"
+
+            # --- Redis ---
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_PORT
+
+            # --- Postgres (Points to RDS) ---
+            - name: POSTGRES_DB
+              value: "ai_db"
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+            - name: POSTGRES_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: POSTGRES_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_PORT
+
+            # --- Kafka ---
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+
+            # --- Email / SMTP ---
+            - name: SMTP_SERVER
+              value: "smtp.gmail.com"
+            - name: SMTP_PORT
+              value: "587"
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: smtp-credentials
+                  key: SMTP_USER
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: smtp-credentials
+                  key: SMTP_PASSWORD
+
+            # --- API Keys ---
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gemini-credentials
+                  key: GEMINI_API_KEY
+            - name: GROQ_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: groq-credentials
+                  key: GROQ_API_KEY
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hf-credentials
+                  key: HF_TOKEN
+
+            # --- AWS ---
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: AWS_DEFAULT_REGION
+              valueFrom:
+                secretKeyRef:         
+                  name: aws-credentials
+                  key: AWS_DEFAULT_REGION
+
+          readinessProbe:
+            httpGet:
+              path: /health/
+              port: 8001
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          livenessProbe:
+            httpGet:
+              path: /health/
+              port: 8001
+            initialDelaySeconds: 40
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 5
+
+---
+# ==========================================
+# 3. AI Service Network ClusterIP
+# ==========================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-service
+  namespace: dineflow-production
+spec:
+  selector:
+    app: ai-service
+  ports:
+    - port: 8001
+      targetPort: 8001

@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-table-session-consumer
+  namespace: dineflow-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: auth-table-session-consumer
+  template:
+    metadata:
+      labels:
+        app: auth-table-session-consumer
+    spec:
+      containers:
+        - name: consumer
+          image: dineflow_backend-auth_service:latest
+          imagePullPolicy: Never
+          command:
+            - python
+            - manage.py
+            - consume_table_session_events
+          env:
+            - name: K8S_ENV
+              value: "true"
+
+            - name: DB_NAME
+              value: "auth_db"
+            - name: DB_USER
+              value: "postgres"
+            - name: DB_PASSWORD
+              value: "postgres"
+            - name: DB_HOST
+              value: "auth-db"
+            - name: DB_PORT
+              value: "5432"
+
+            - name: KAFKA_BROKER
+              value: "host.docker.internal:9092"

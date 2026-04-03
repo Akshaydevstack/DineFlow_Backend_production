@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kitchen-order-consumer
+  namespace: dineflow-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kitchen-order-consumer
+  template:
+    metadata:
+      labels:
+        app: kitchen-order-consumer
+    spec:
+      containers:
+        - name: consumer
+          image: dineflow_backend-kitchen_service:latest
+          imagePullPolicy: Never
+          command:
+            - python
+            - manage.py
+            - consume_order_events
+          env:
+            - name: KAFKA_BROKER
+              value: "host.docker.internal:9092"
+
+            - name: DB_NAME
+              value: "kitchen_db"
+            - name: DB_USER
+              value: "postgres"
+            - name: DB_PASSWORD
+              value: "postgres"
+            - name: DB_HOST
+              value: "kitchen-db"
+            - name: DB_PORT
+              value: "5432"
+
+            # Optional but recommended
+            - name: KAFKA_CONSUMER_NAME
+              value: "kitchen-order-consumer"
+            - name: KITCHEN_DLQ_TOPIC
+              value: "kitchen.order.dlq"

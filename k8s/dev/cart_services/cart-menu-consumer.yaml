@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cart-menu-consumer
+  namespace: dineflow-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cart-menu-consumer
+  template:
+    metadata:
+      labels:
+        app: cart-menu-consumer
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: consumer
+          image: dineflow/cart-service:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - python
+            - manage.py
+            - consume_menu_events
+
+          env:
+            - name: K8S_ENV
+              value: "true"
+
+            - name: KAFKA_BROKER
+              value: "host.docker.internal:9092"
+
+            - name: DB_NAME
+              value: "cart_db"
+            - name: DB_USER
+              value: "postgres"
+            - name: DB_PASSWORD
+              value: "postgres"
+            - name: DB_HOST
+              value: "cart-db"
+            - name: DB_PORT
+              value: "5432"
+
+            - name: REDIS_HOST
+              value: "redis"
+            - name: REDIS_PORT
+              value: "6379"
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"

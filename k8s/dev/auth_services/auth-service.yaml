@@ -1,0 +1,119 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: dineflow-dev
+spec:
+  replicas: 1
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+
+  selector:
+    matchLabels:
+      app: auth-service
+
+  template:
+    metadata:
+      labels:
+        app: auth-service
+
+    spec:
+      initContainers:
+        - name: init-auth-db
+          image: postgres:15
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PGPASSWORD
+              value: postgres
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for Postgres..."
+              until pg_isready -h auth-db -U postgres; do
+              sleep 2
+              done
+
+      containers:
+        - name: auth-service
+          image: dineflow_backend-auth_service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8000
+
+          env:
+            - name: K8S_ENV
+              value: "true"
+            - name: DB_NAME
+              value: "auth_db"
+            - name: DB_USER
+              value: "postgres"
+            - name: DB_PASSWORD
+              value: "postgres"
+            - name: DB_HOST
+              value: "auth-db"
+            - name: DB_PORT
+              value: "5432"
+            # 1️⃣ Tell Firebase exactly where to find the mounted secret file
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: "/etc/secrets/firebase/firebase-credentials.json"
+
+          volumeMounts:
+            - name: jwt-private-key
+              mountPath: /app/jwt_keys/private.pem
+              subPath: private.pem
+              readOnly: true
+
+            - name: jwt-public-key
+              mountPath: /app/jwt_keys/public.pem
+              subPath: public.pem
+              readOnly: true
+              
+            # 2️⃣ Mount the Firebase secret directory into the container
+            - name: firebase-secret-volume
+              mountPath: /etc/secrets/firebase
+              readOnly: true
+
+          readinessProbe:
+            httpGet:
+              path: /health/
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+
+          livenessProbe:
+            httpGet:
+              path: /health/
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+
+      volumes:
+        - name: jwt-private-key
+          secret:
+            secretName: jwt-private-key
+
+        - name: jwt-public-key
+          secret:
+            secretName: jwt-public-key
+            
+        # 3️⃣ Define the volume by pulling from the K8s Secret
+        - name: firebase-secret-volume
+          secret:
+            secretName: firebase-auth-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  namespace: dineflow-dev
+spec:
+  selector:
+    app: auth-service
+  ports:
+    - port: 8000
+      targetPort: 8000

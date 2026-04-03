@@ -1,0 +1,36 @@
+{
+	"folders": [
+		{
+			"name": "authService",
+			"path": "authService"
+		},
+		{
+			"name": "cartService",
+			"path": "cartService"
+		},
+		{
+			"name": "k8s",
+			"path": "k8s"
+		},
+		{
+			"name": "kitchenService",
+			"path": "kitchenService"
+		},
+		{
+			"name": "orderService",
+			"path": "orderService"
+		},
+		{
+			"name": "nginx",
+			"path": "nginx"
+		},
+		{
+			"name": "menuService",
+			"path": "menuService"
+		},
+		{
+			"path": "NotificationService"
+		}
+	],
+	"settings": {}
+}

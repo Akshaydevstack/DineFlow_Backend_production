@@ -1,0 +1,49 @@
+name: Deploy Gateway Service
+
+on:
+  push:
+    branches: [ main ]
+    paths: [ 'nginx/**', 'k8s/production/nginx/**' ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+
+      - name: Login to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & Push
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker build -t $ECR_REGISTRY/dineflow-gateway:latest ./nginx
+          docker push $ECR_REGISTRY/dineflow-gateway:latest
+
+      - name: Update KubeConfig
+        run: aws eks update-kubeconfig --name dineflow-production-cluster --region ap-south-1
+
+      - name: Deploy to EKS and Restart Pods
+        run: |
+          # 1. Automatically update the ConfigMap with your latest nginx.conf
+          kubectl create configmap nginx-config \
+            --from-file=custom_nginx.conf=nginx/production/nginx.conf \
+            -n dineflow-production \
+            --dry-run=client -o yaml | kubectl apply -f -
+            
+          # 2. Apply your Gateway Deployment YAML (Note: ensure your file is named gateway-deployment.yaml)
+          kubectl apply -f k8s/production/nginx/gateway-deployment.yaml -n dineflow-production
+          
+          # 3. Restart the Gateway so it pulls the fresh ConfigMap
+          kubectl rollout restart deployment gateway-service -n dineflow-production
+          kubectl rollout status deployment gateway-service -n dineflow-production

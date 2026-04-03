@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-celery-worker
+  namespace: dineflow-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notification-celery-worker
+  template:
+    metadata:
+      labels:
+        app: notification-celery-worker
+    spec:
+      containers:
+        - name: celery-worker
+          image: dineflow_backend-notification_service:latest
+          imagePullPolicy: Never
+          command:
+            - celery
+            - -A
+            - notification_service
+            - worker
+            - --loglevel=info
+            - -Q
+            - notification_queue
+          env:
+            - name: CELERY_BROKER_URL
+              value: "redis://redis:6379/0"
+            - name: DJANGO_SETTINGS_MODULE
+              value: "notification_service.settings"
+            - name: DB_NAME
+              value: "notification_db"
+            - name: DB_USER
+              value: "postgres"
+            - name: DB_PASSWORD
+              value: "postgres"
+            - name: DB_HOST
+              value: "notification-db"
+            - name: DB_PORT
+              value: "5432"

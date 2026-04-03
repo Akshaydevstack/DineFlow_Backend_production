@@ -1,0 +1,61 @@
+# ==========================================
+# DINEFLOW MONOREPO .GITIGNORE
+# Applies to all microservices automatically
+# ==========================================
+
+# 1. Virtual Environments
+**/.venv/
+**/venv/
+**/env/
+
+# 2. Environment Variables & Secrets (CRITICAL)
+**/.env
+**/.env.*
+**/*firebase-credentials*.json
+**/*firebase-adminsdk*.json
+**/service_account.json
+**/jwt_keys/*.pem
+**/*.pem
+
+# 3. Python & Django
+**/__pycache__/
+**/*.py[cod]
+**/*$py.class
+**/db.sqlite3
+**/db.sqlite3-journal
+**/media/
+**/staticfiles/
+
+# 4. Testing & Coverage
+**/.pytest_cache/
+**/.coverage
+**/htmlcov/
+
+# 6. OS Generated Files
+**/.DS_Store
+**/.DS_Store?
+**/._*
+**/Thumbs.db
+
+# 7. IDEs & Editors
+.vscode/
+.idea/
+*.swp
+
+# 8. Logs & Docker
+**/*.log
+**/*.pid
+**/.docker/
+
+
+# Terraform & Infrastructure
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+dineflow-infrastructure/
+
+
+# scripts (Recommended)
+**/setup-cluster.sh
+**/push_to_aws.sh

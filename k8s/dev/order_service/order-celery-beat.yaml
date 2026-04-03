@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-celery-beat
+  namespace: dineflow-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-celery-beat
+  template:
+    metadata:
+      labels:
+        app: order-celery-beat
+    spec:
+      containers:
+        - name: celery-beat
+          image: dineflow_backend-order_service:latest
+          imagePullPolicy: Never
+          command:
+            - celery
+            - -A
+            - order_service
+            - beat
+            - -l
+            - info
+          env:
+            - name: CELERY_BROKER_URL
+              value: "redis://redis:6379/0"
+            - name: DJANGO_SETTINGS_MODULE
+              value: "order_service.settings"
+            - name: DB_NAME
+              value: "order_db"
+            - name: DB_USER
+              value: "postgres"
+            - name: DB_PASSWORD
+              value: "postgres"
+            - name: DB_HOST
+              value: "order-db"
+            - name: DB_PORT
+              value: "5432"

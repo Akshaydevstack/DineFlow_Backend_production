@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-service
+  namespace: dineflow-production
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway-service
+  template:
+    metadata:
+      labels:
+        app: gateway-service
+    spec:
+      containers:
+        - name: gateway
+          image: 332704998262.dkr.ecr.ap-south-1.amazonaws.com/dineflow-gateway:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+
+          volumeMounts:
+            # 1. Mount the JWT Keys
+            - name: jwt-keys-volume
+              mountPath: /etc/nginx/jwt 
+              readOnly: true
+            
+            # 2. Mount the Nginx ConfigMap as a single file
+            - name: nginx-config-volume
+              mountPath: /etc/nginx/custom_nginx.conf
+              subPath: custom_nginx.conf
+              readOnly: true
+              
+      volumes:
+        - name: jwt-keys-volume
+          secret:
+            secretName: jwt-keys 
+            
+        - name: nginx-config-volume
+          configMap:
+            name: nginx-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-service
+  namespace: dineflow-production
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+    
+    # 🚀 Attaches your AWS SSL Certificate
+    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "arn:aws:acm:ap-south-1:332704998262:certificate/fef6451e-dcea-4ecb-b5e2-0df7cba15389"
+    
+    # 🚀 Opens HTTPS Port 443 on the AWS Load Balancer
+    service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "443"
+spec:
+  type: LoadBalancer 
+  selector:
+    app: gateway-service
+  ports:
+    # 1. Keep standard HTTP open
+    - name: http
+      protocol: TCP
+      port: 80       
+      targetPort: 80
+      
+    # 2. 🚀 NEW: Open HTTPS
+    - name: https
+      protocol: TCP
+      port: 443
+      targetPort: 80 # The NLB decrypts the HTTPS, then passes raw traffic to Nginx on port 80

@@ -1,0 +1,52 @@
+# ==========================================
+# PyTorch CPU-Only Override (MUST BE AT TOP)
+# ==========================================
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+torchvision
+
+# ==========================================
+# API & Web Framework
+# ==========================================
+fastapi
+httpx==0.27.0
+pydantic
+uvicorn
+
+# ==========================================
+# LLM & Agent Frameworks
+# ==========================================
+google-genai>=0.3.0
+langchain>=0.3.0
+langchain-core>=0.3.0
+langchain-google-genai>=2.0.0
+langgraph>=0.2.0
+
+# ==========================================
+# RAG, Embeddings & Vector DB
+# ==========================================
+numpy
+pgvector
+psycopg2-binary
+sentence-transformers
+
+# ==========================================
+# Message Broker / Async
+# ==========================================
+confluent-kafka
+
+# ==========================================
+# Database & Cache
+# ==========================================
+redis
+
+# ==========================================
+# Cloud Services (AWS)
+# ==========================================
+boto3
+
+# ==========================================
+# Utilities & Logging
+# ==========================================
+loguru
+python-dotenv

@@ -1,0 +1,44 @@
+name: Deploy Kitchen Service
+
+on:
+  push:
+    branches: [ main ]
+    paths: [ 'kitchenService/**', 'k8s/production/kitchen-service/**' ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+
+      - name: Login to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & Push
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker build -t $ECR_REGISTRY/dineflow-kitchen:latest ./kitchenService
+          docker push $ECR_REGISTRY/dineflow-kitchen:latest
+
+      - name: Update KubeConfig
+        run: aws eks update-kubeconfig --name dineflow-production-cluster --region ap-south-1
+
+      - name: Deploy to EKS and Restart Pods
+        run: |
+          kubectl apply -f k8s/production/kitchen-service/kitchen-deployment.yaml -n dineflow-production
+          
+          kubectl rollout restart deployment kitchen-service -n dineflow-production
+          kubectl rollout restart deployment kitchen-order-consumer -n dineflow-production
+          
+          kubectl rollout status deployment kitchen-service -n dineflow-production
+          kubectl rollout status deployment kitchen-order-consumer -n dineflow-production

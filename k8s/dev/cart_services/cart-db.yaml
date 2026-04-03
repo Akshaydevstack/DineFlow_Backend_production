@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cart-db
+  namespace: dineflow-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cart-db
+  template:
+    metadata:
+      labels:
+        app: cart-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15
+          env:
+            - name: POSTGRES_DB
+              value: cart_db
+            - name: POSTGRES_USER
+              value: postgres
+            - name: POSTGRES_PASSWORD
+              value: postgres
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: cart-db-storage
+              mountPath: /var/lib/postgresql/data
+
+      volumes:
+        - name: cart-db-storage
+          persistentVolumeClaim:
+            claimName: cart-db-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cart-db
+  namespace: dineflow-dev
+spec:
+  selector:
+    app: cart-db
+  ports:
+    - port: 5432
+      targetPort: 5432

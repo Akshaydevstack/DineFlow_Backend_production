@@ -1,0 +1,145 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: menu-service
+  namespace: dineflow-production # 🚀 Upgraded namespace
+spec:
+  replicas: 1 # 🚀 Upgraded: High Availability
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0 # 🚀 Upgraded: Zero downtime deployments
+
+  selector:
+    matchLabels:
+      app: menu-service
+
+  template:
+    metadata:
+      labels:
+        app: menu-service
+
+    spec:
+      initContainers:
+        - name: init-menu-db
+          image: postgres:15
+          imagePullPolicy: IfNotPresent
+          # 🚀 Upgraded: Securely fetches RDS credentials
+          env:
+            - name: PGHOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: PGUSER
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_USER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for AWS RDS Database..."
+              until pg_isready -h $PGHOST -U $PGUSER; do
+                sleep 2
+              done
+
+      containers:
+        - name: menu-service
+          # 🚀 Upgraded: Points to your secure AWS ECR repository
+          image: 332704998262.dkr.ecr.ap-south-1.amazonaws.com/dineflow-menu:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+
+          # 🚀 Upgraded: Production resource limits prevent cluster starvation
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+
+          env:
+            - name: K8S_ENV
+              value: "true"
+            # --- ADD THIS KAFKA BLOCK ---
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+            # 🚀 Upgraded: Database configured for the isolated 'menu_db'
+            - name: DB_NAME
+              value: "menu_db"
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_PORT
+
+            # 🚀 Upgraded: Dynamically pulls Redis config
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_PORT
+
+          readinessProbe:
+            httpGet:
+              path: /health/
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 3
+
+          livenessProbe:
+            httpGet:
+              path: /health/
+              port: 8000
+            initialDelaySeconds: 45
+            periodSeconds: 15
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: menu-service
+  namespace: dineflow-production # 🚀 Upgraded namespace
+spec:
+  selector:
+    app: menu-service
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+  type: ClusterIP

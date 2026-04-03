@@ -1,0 +1,242 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kitchen-service
+  namespace: dineflow-production
+spec:
+  replicas: 1 # 🚀 Upgraded: High Availability
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0 # 🚀 Upgraded: Zero downtime deployments
+
+  selector:
+    matchLabels:
+      app: kitchen-service
+
+  template:
+    metadata:
+      labels:
+        app: kitchen-service
+
+    spec:
+      initContainers:
+        - name: init-kitchen-db
+          image: postgres:15
+          imagePullPolicy: IfNotPresent
+          # 🚀 Upgraded: Securely fetches RDS credentials
+          env:
+            - name: PGHOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: PGUSER
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_USER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for AWS RDS Database..."
+              until pg_isready -h $PGHOST -U $PGUSER; do
+                sleep 2
+              done
+
+      containers:
+        - name: kitchen-service
+          # 🚀 Upgraded: Points to your secure AWS ECR repository
+          image: 332704998262.dkr.ecr.ap-south-1.amazonaws.com/dineflow-kitchen:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+
+          # 🚀 Upgraded: Production resource limits
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+
+          env:
+            - name: K8S_ENV
+              value: "true"
+            
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_PORT
+
+            # 🚀 Upgraded: Dynamically pulls Kafka broker URL
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+
+            # 🚀 Upgraded: Database configured for the isolated 'kitchen_db'
+            - name: DB_NAME
+              value: "kitchen_db"
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_PORT
+
+          readinessProbe:
+            httpGet:
+              path: /health/
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 3
+
+          livenessProbe:
+            httpGet:
+              path: /health/
+              port: 8000
+            initialDelaySeconds: 45
+            periodSeconds: 15
+            failureThreshold: 3
+
+
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kitchen-service
+  namespace: dineflow-production # 🚀 Upgraded namespace
+spec:
+  selector:
+    app: kitchen-service
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+  type: ClusterIP
+---
+
+
+
+
+
+# 🚀 Upgraded: Production-Ready Kitchen Order Consumer
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kitchen-order-consumer
+  namespace: dineflow-production
+spec:
+  replicas: 1 # Consumers usually scale based on lag, 1 is perfect to start
+  selector:
+    matchLabels:
+      app: kitchen-order-consumer
+  template:
+    metadata:
+      labels:
+        app: kitchen-order-consumer
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: consumer
+          # 🚀 Upgraded: Points to the ECR Image
+          image: 332704998262.dkr.ecr.ap-south-1.amazonaws.com/dineflow-kitchen:latest
+          imagePullPolicy: Always
+          command:
+            - python
+            - manage.py
+            - consume_order_events
+          
+          # 🚀 Upgraded: Production resource limits
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+          env:
+            - name: K8S_ENV
+              value: "true"
+            
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_PORT
+
+            # 🚀 Upgraded: Dynamically pulls Kafka broker URL
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+
+            # 🚀 Upgraded: Database configured for 'kitchen_db'
+            - name: DB_NAME
+              value: "kitchen_db"
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_PORT
+
+            # Consumer specific env vars
+            - name: KAFKA_CONSUMER_NAME
+              value: "kitchen-order-consumer"
+            - name: KITCHEN_DLQ_TOPIC
+              value: "kitchen.order.dlq"

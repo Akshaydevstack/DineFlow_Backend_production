@@ -1,0 +1,516 @@
+# ==========================================
+# 1. MAIN ORDER API SERVICE
+# ==========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+  namespace: dineflow-production
+spec:
+  replicas: 1 # Kept at 1 to conserve cluster memory
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: order-service
+  template:
+    metadata:
+      labels:
+        app: order-service
+    spec:
+      initContainers:
+        - name: init-order-db
+          image: postgres:15
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PGHOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: PGUSER
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_USER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for AWS RDS Database..."
+              until pg_isready -h $PGHOST -U $PGUSER; do
+                sleep 2
+              done
+      containers:
+        - name: order-service
+          image: 332704998262.dkr.ecr.ap-south-1.amazonaws.com/dineflow-order:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+          env:
+            - name: K8S_ENV
+              value: "true"
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_PORT
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+            - name: DB_NAME
+              value: "order_db"
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_PORT
+          readinessProbe:
+            httpGet:
+              path: /health/
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health/
+              port: 8000
+            initialDelaySeconds: 45
+            periodSeconds: 15
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-service
+  namespace: dineflow-production
+spec:
+  selector:
+    app: order-service
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+  type: ClusterIP
+
+---
+# ==========================================
+# 2. CELERY BEAT (Must be 1 replica)
+# ==========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-celery-beat
+  namespace: dineflow-production
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-celery-beat
+  template:
+    metadata:
+      labels:
+        app: order-celery-beat
+    spec:
+      containers:
+        - name: celery-beat
+          image: 332704998262.dkr.ecr.ap-south-1.amazonaws.com/dineflow-order:latest
+          imagePullPolicy: Always
+          command:
+            - celery
+            - -A
+            - order_service
+            - beat
+            - -l
+            - info
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "300m"
+              memory: "256Mi"
+          env:
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+                  
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_PORT
+            - name: CELERY_BROKER_URL
+              value: "redis://$(REDIS_HOST):$(REDIS_PORT)/0"
+            - name: DJANGO_SETTINGS_MODULE
+              value: "order_service.settings"
+            - name: DB_NAME
+              value: "order_db"
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_PORT
+
+---
+# ==========================================
+# 3. CELERY WORKER
+# ==========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-celery-worker
+  namespace: dineflow-production
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-celery-worker
+  template:
+    metadata:
+      labels:
+        app: order-celery-worker
+    spec:
+      containers:
+        - name: celery-worker
+          image: 332704998262.dkr.ecr.ap-south-1.amazonaws.com/dineflow-order:latest
+          imagePullPolicy: Always
+          command:
+            - celery
+            - -A
+            - order_service
+            - worker
+            - --loglevel=info
+            - -Q
+            - order_queue
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          env:
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_PORT
+            - name: CELERY_BROKER_URL
+              value: "redis://$(REDIS_HOST):$(REDIS_PORT)/0"
+            - name: DJANGO_SETTINGS_MODULE
+              value: "order_service.settings"
+            - name: DB_NAME
+              value: "order_db"
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_PORT
+
+---
+# ==========================================
+# 4. KITCHEN CONSUMER
+# ==========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-kitchen-consumer
+  namespace: dineflow-production
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-kitchen-consumer
+  template:
+    metadata:
+      labels:
+        app: order-kitchen-consumer
+    spec:
+      containers:
+        - name: consumer
+          image: 332704998262.dkr.ecr.ap-south-1.amazonaws.com/dineflow-order:latest
+          imagePullPolicy: Always
+          command:
+            - python
+            - manage.py
+            - consume_kitchen_events
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          env:
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_PORT
+            - name: DB_NAME
+              value: "order_db"
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_PORT
+
+---
+# ==========================================
+# 5. MENU CONSUMER
+# ==========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-menu-consumer
+  namespace: dineflow-production
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-menu-consumer
+  template:
+    metadata:
+      labels:
+        app: order-menu-consumer
+    spec:
+      containers:
+        - name: consumer
+          image: 332704998262.dkr.ecr.ap-south-1.amazonaws.com/dineflow-order:latest
+          imagePullPolicy: Always
+          command:
+            - python
+            - manage.py
+            - consume_menu_events
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          env:
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_PORT
+            - name: DB_NAME
+              value: "order_db"
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_PORT
+
+---
+# ==========================================
+# 6. TABLE CONSUMER
+# ==========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-table-consumer
+  namespace: dineflow-production
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-table-consumer
+  template:
+    metadata:
+      labels:
+        app: order-table-consumer
+    spec:
+      containers:
+        - name: consumer
+          image: 332704998262.dkr.ecr.ap-south-1.amazonaws.com/dineflow-order:latest
+          imagePullPolicy: Always
+          command:
+            - python
+            - manage.py
+            - consume_table_events
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          env:
+            - name: K8S_ENV
+              value: "true"
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_PORT
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+            - name: DB_NAME
+              value: "order_db"
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_PORT

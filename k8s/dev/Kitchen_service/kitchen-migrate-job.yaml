@@ -1,0 +1,49 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kitchen-migrate-job
+  namespace: dineflow-dev
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+
+      # ⏳ Wait until Kitchen DB is ready
+      initContainers:
+        - name: wait-for-db
+          image: postgres:15
+          env:
+            - name: PGPASSWORD
+              value: postgres
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for Kitchen Postgres..."
+              until pg_isready -h kitchen-db -U postgres; do
+                sleep 2
+              done
+
+      # 🚀 Run Django migrations
+      containers:
+        - name: migrate
+          image: dineflow_backend-kitchen_service:latest
+          imagePullPolicy: Never
+          command:
+            - sh
+            - -c
+            - |
+              echo "Running Kitchen migrations..."
+              python manage.py makemigrations &&
+              python manage.py migrate
+          env:
+            - name: DB_NAME
+              value: kitchen_db
+            - name: DB_USER
+              value: postgres
+            - name: DB_PASSWORD
+              value: postgres
+            - name: DB_HOST
+              value: kitchen-db
+            - name: DB_PORT
+              value: "5432"

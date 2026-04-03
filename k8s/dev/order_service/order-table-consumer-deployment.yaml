@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-table-consumer
+  namespace: dineflow-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-table-consumer
+  template:
+    metadata:
+      labels:
+        app: order-table-consumer
+    spec:
+      containers:
+        - name: consumer
+          image: dineflow_backend-order_service:latest
+          imagePullPolicy: Never
+          command:
+            - python
+            - manage.py
+            - consume_table_events
+          env:
+            - name: K8S_ENV
+              value: "true"
+            - name: DB_NAME
+              value: "order_db"
+            - name: DB_USER
+              value: "postgres"
+            - name: DB_PASSWORD
+              value: "postgres"
+            - name: DB_HOST
+              value: "order-db"
+            - name: DB_PORT
+              value: "5432"
+            - name: KAFKA_BROKER
+              value: "host.docker.internal:9092"

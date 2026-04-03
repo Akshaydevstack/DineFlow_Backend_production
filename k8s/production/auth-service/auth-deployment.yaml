@@ -1,0 +1,207 @@
+# ==========================================
+# 1. Auth Service API Deployment
+# ==========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: dineflow-production 
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: auth-service
+  template:
+    metadata:
+      labels:
+        app: auth-service
+    spec:
+      containers:
+        - name: auth-service
+          image: 332704998262.dkr.ecr.ap-south-1.amazonaws.com/dineflow-auth:latest
+          imagePullPolicy: Always 
+          ports:
+            - containerPort: 8000
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+          env:
+            - name: K8S_ENV
+              value: "true"
+            # --- Kafka ---
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+            # --- Postgres (Points to RDS) ---
+            - name: DB_NAME
+              value: "auth_db" 
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_PORT
+
+            # --- Firebase ---
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: "/etc/secrets/firebase/firebase-credentials.json"
+
+          volumeMounts:
+            - name: jwt-keys-volume
+              mountPath: /app/jwt_keys
+              readOnly: true
+            - name: firebase-secret-volume
+              mountPath: /etc/secrets/firebase
+              readOnly: true
+
+          readinessProbe:
+            httpGet:
+              path: /health/
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+
+          livenessProbe:
+            httpGet:
+              path: /health/
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+
+      volumes:
+        - name: jwt-keys-volume
+          secret:
+            secretName: jwt-keys
+        - name: firebase-secret-volume
+          secret:
+            secretName: firebase-auth-secret
+
+---
+# ==========================================
+# 2. Auth Service Network ClusterIP
+# ==========================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  namespace: dineflow-production 
+spec:
+  selector:
+    app: auth-service
+  ports:
+    - port: 8000
+      targetPort: 8000
+
+---
+
+# ==========================================
+# 3. Auth Table Session Consumer Deployment
+# ==========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-table-session-consumer
+  namespace: dineflow-production 
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: auth-table-session-consumer
+  template:
+    metadata:
+      labels:
+        app: auth-table-session-consumer
+    spec:
+      containers:
+        - name: consumer
+          image: 332704998262.dkr.ecr.ap-south-1.amazonaws.com/dineflow-auth:latest
+          imagePullPolicy: Always 
+          command:
+            - python
+            - manage.py
+            - consume_table_session_events
+            
+          # 👇 AND ADDED THIS BLOCK HERE
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+          env:
+            - name: K8S_ENV
+              value: "true"
+
+            # --- Postgres (Points to RDS) ---
+            - name: DB_NAME
+              value: "auth_db"
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_PORT
+
+            # --- Kafka ---
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+                  
+            # --- Firebase (Added) ---
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: "/etc/secrets/firebase/firebase-credentials.json"
+
+          volumeMounts:
+            - name: firebase-secret-volume
+              mountPath: /etc/secrets/firebase
+              readOnly: true
+
+      volumes:
+        - name: firebase-secret-volume
+          secret:
+            secretName: firebase-auth-secret

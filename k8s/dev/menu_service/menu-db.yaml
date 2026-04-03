@@ -1,0 +1,46 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: menu-db
+  namespace: dineflow-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: menu-db
+  template:
+    metadata:
+      labels:
+        app: menu-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15
+          env:
+            - name: POSTGRES_DB
+              value: menu_db
+            - name: POSTGRES_USER
+              value: postgres
+            - name: POSTGRES_PASSWORD
+              value: postgres
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: menu-db-storage
+              mountPath: /var/lib/postgresql/data
+
+      volumes:
+      - name: menu-db-storage
+        persistentVolumeClaim:
+          claimName: menu-db-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: menu-db
+spec:
+  selector:
+    app: menu-db
+  ports:
+    - port: 5432

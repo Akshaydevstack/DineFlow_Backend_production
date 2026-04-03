@@ -1,0 +1,36 @@
+# Python virtual environment — biggest culprit
+.venv
+venv
+env
+
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Dev tools
+.vscode
+.idea
+*.md
+
+# Local env files
+.env
+.env.*
+
+# Test files
+tests/
+pytest.ini
+.coverage
+
+# Models — already downloaded in Docker layer
+models/

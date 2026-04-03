@@ -1,0 +1,35 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: menu-migrate
+  namespace: dineflow-dev
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+
+      containers:
+        - name: migrate
+          image: dineflow_backend-menu_service:latest
+          imagePullPolicy: Never
+          command:
+            - sh
+            - -c
+            - |
+              echo "Running menu migrations..."
+              python manage.py migrate
+
+          env:
+            - name: K8S_ENV
+              value: "true"
+            - name: DB_NAME
+              value: "menu_db"
+            - name: DB_USER
+              value: "postgres"
+            - name: DB_PASSWORD
+              value: "postgres"
+            - name: DB_HOST
+              value: "menu-db"
+            - name: DB_PORT
+              value: "5432"
