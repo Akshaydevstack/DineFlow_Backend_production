@@ -1,187 +1,66 @@
-# 🚀 DineFlow Backend
-
-A production-grade **microservices backend** secured with **JWT at API Gateway level (NGINX + OpenResty)** using **RS256**, built with Django, Docker, and Redis.
-
----
-
-## 🧠 Architecture Overview
-
-This backend follows a **Gateway Authentication Pattern**:
-
-```
-Client / Swagger UI
-        ↓ (Bearer Token)
-NGINX (OpenResty + Lua)
-  ├── JWT Verification (RS256)
-  ├── Token Expiry Enforcement
-  ├── Header Injection (Trusted)
-  ↓
-Microservices (Django)
-```
-
-### Key Idea
-
-* **Authentication happens ONLY at the gateway**
-* Microservices **never verify JWT tokens**
-* Services trust headers injected by the gateway
-
----
-
-## 🧩 Services
-
-| Service           | Responsibility                               |
-| ----------------- | -------------------------------------------- |
-| **Auth Service**  | User login, token issuance (RS256 JWT)       |
-| **Menu Service**  | Categories, dishes, reviews                  |
-| **NGINX Gateway** | JWT verification, routing, security          |
-| **Redis**         | Caching (JWT public key, future rate limits) |
-| **PostgreSQL**    | Databases per service                        |
-
----
-
-## 🔐 Authentication & Security
-
-### JWT Strategy
-
-* Algorithm: **RS256**
-* Private key: **Auth Service only**
-* Public key: **NGINX Gateway**
-
-### Where JWT Is Verified
-
-✅ **Only in NGINX**
-
-```lua
-jwt:verify(public_key, token)
-```
-
-### What Happens After Verification
-
-NGINX injects trusted headers:
-
-```
-X-User-Id
-X-User-Role
-X-User-Email
-```
-
-Microservices **do not read Authorization headers**.
-
----
-
-## 🌐 API Gateway (NGINX)
-
-### Responsibilities
-
-* JWT verification (RS256)
-* Token expiry enforcement
-* Role-based access control (ready)
-* Route-based service proxying
-
-### Protected Routes
-
-```
-/api/menu/**   → JWT required
-```
-
-### Public Routes
-
-```
-/api/auth/**
-/api/*/health/
-/api/*/swagger/
-```
-
----
-
-## 📘 Swagger / API Documentation
-
-### Important Truth
-
-> Swagger **does NOT authenticate users**
-
-It only:
-
-* Collects Bearer token
-* Adds `Authorization: Bearer <token>` header
-
-### Current Setup
-
-* Auth Swagger: `/api/auth/swagger/`
-* Menu Swagger: `/api/menu/swagger/`
-* Works via NGINX reverse proxy
-* JWT input works correctly
-
----
-
-## 🩺 Health Checks
-
-Each component exposes health endpoints for monitoring:
-
-| Endpoint            | Purpose             |
-| ------------------- | ------------------- |
-| `/health`           | Gateway health      |
-| `/api/auth/health/` | Auth service health |
-| `/api/menu/health/` | Menu service health |
-
-Used for:
-
-* Docker health checks
-* Kubernetes readiness/liveness probes
-
----
-
-## 🐳 Docker Setup
-
-All services run via **Docker Compose**:
-
-```bash
-docker compose up --build
-```
-
-Includes:
-
-* NGINX (OpenResty)
-* Auth Service (Django)
-* Menu Service (Django)
-* Redis
-* PostgreSQL (per service)
-
----
-
-## 🔥 Key Engineering Decisions
-
-✔ JWT verification at gateway (not services)
-✔ RS256 asymmetric encryption
-✔ No shared auth logic between services
-✔ Swagger works without breaking security
-✔ Clean microservice boundaries
-
-This mirrors **real-world enterprise systems**.
-
----
-
-## 🛣️ What’s Next
-
-* 🔐 Role-Based Access Control (RBAC) at gateway
-* 🚦 Rate limiting via Redis
-* 📊 Metrics & logging
-* ☁️ AWS / Kubernetes deployment
-
----
-
-## 👨‍💻 Author
-
-**Akshay Bharathan**
-Backend Engineer – Microservices & API Gateway Architecture
-
----
-
-> This repository represents a **production-ready backend foundation**, not a demo project.
-
-
-Push to the ECR
-
-chmod +x push_to_aws.sh
-
-./push_to_aws.sh       
+flowchart TD
+    %% Define Styles
+    classDef client fill:#f9f6f0,stroke:#333,stroke-width:2px,color:#000
+    classDef aws fill:#ff9900,stroke:#232f3e,stroke-width:2px,color:#000
+    classDef k8s fill:#326ce5,stroke:#fff,stroke-width:2px,color:#fff
+    classDef db fill:#336791,stroke:#fff,stroke-width:2px,color:#fff
+    classDef cache fill:#dc382d,stroke:#fff,stroke-width:2px,color:#fff
+    classDef broker fill:#000000,stroke:#fff,stroke-width:2px,color:#fff
+
+    %% External
+    User[React Frontend\nHosted on Vercel]:::client
+
+    %% AWS Cloud Boundary
+    subgraph AWS Cloud
+        ALB[AWS Application Load Balancer]:::aws
+        
+        %% Kubernetes Cluster
+        subgraph EKS Cluster v1.33
+            Gateway[NGINX API Gateway\nJWT Verification]:::k8s
+            
+            subgraph Django Microservices
+                Auth[Auth Service]:::k8s
+                Menu[Menu Service]:::k8s
+                Cart[Cart Service]:::k8s
+                Order[Order Service]:::k8s
+                Kitchen[Kitchen Service]:::k8s
+                AI[AI Service]:::k8s
+                Notify[Notification Service\nCelery Workers]:::k8s
+            end
+            
+            Kafka[Redpanda / Kafka\nEvent Bus]:::broker
+        end
+
+        %% Managed Data Services
+        DB[(AWS RDS\nPostgreSQL)]:::db
+        Redis[(ElastiCache\nRedis)]:::cache
+        SQS[AWS SQS\nEmail Queue]:::aws
+        SES[AWS SES\nEmail Delivery]:::aws
+    end
+
+    %% Traffic Flow
+    User -->|HTTPS| ALB
+    ALB --> Gateway
+    
+    %% Gateway Routing
+    Gateway -->|Trusted Internal Headers| Auth
+    Gateway -->|Trusted Internal Headers| Menu
+    Gateway -->|Trusted Internal Headers| Cart
+    Gateway -->|Trusted Internal Headers| Order
+    Gateway -->|Trusted Internal Headers| Kitchen
+
+    %% Database & Cache Connections
+    Auth & Menu & Order & Kitchen --> DB
+    Cart & Gateway --> Redis
+    
+    %% Event Driven Flow (Pub/Sub)
+    Order -->|Publish Order Event| Kafka
+    Kafka -->|Consume Event| Kitchen
+    Kafka -->|Consume Event| AI
+    Kafka -->|Consume Event| Notify
+
+    %% Async Email Flow
+    Notify -->|Push to Queue| SQS
+    SQS --> Notify
+    Notify -->|Trigger Email| SES
+    SES -->|Send to Customer| User
