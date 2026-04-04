@@ -1,6 +1,6 @@
 #!/bin/bash
-# to run chmod +x restart-all.sh   
-# ./restart-all.sh    
+# to run chmod +x create-topics.sh
+# ./create-topics.sh 
    
 NAMESPACE="dineflow-production"
 

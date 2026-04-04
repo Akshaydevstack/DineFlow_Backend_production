@@ -17,6 +17,16 @@ spec:
         app: ai-kafka-consumer
     spec:
       terminationGracePeriodSeconds: 30
+      
+      # 🚀 FIX 1: Ensures consumer runs on the AI Node and tolerates the taint
+      nodeSelector:
+        workload-type: "ai-heavy"
+      tolerations:
+      - key: "workload-type"
+        operator: "Equal"
+        value: "ai-heavy"
+        effect: "NoSchedule"
+
       containers:
         - name: consumer
           image: 332704998262.dkr.ecr.ap-south-1.amazonaws.com/dineflow-ai:latest
@@ -109,10 +119,14 @@ spec:
       labels:
         app: ai-service
     spec:
-      # 🚀 THE FIX: Forces this pod to ONLY run on the AI-labeled server 
-      # with the 30GB+ disk drive to prevent ephemeral storage crashes
+      # 🚀 FIX 2: NodeSelector + Tolerations to bypass the Terraform Taint
       nodeSelector:
         workload-type: "ai-heavy"
+      tolerations:
+      - key: "workload-type"
+        operator: "Equal"
+        value: "ai-heavy"
+        effect: "NoSchedule"
         
       containers:
         - name: ai-service
@@ -126,7 +140,8 @@ spec:
               memory: "1Gi"
               cpu: "500m"
             limits:
-              memory: "3.5Gi"
+              # 🚀 CRITICAL FIX 3: Lowered from 3Gi to 1.5Gi so it actually fits on the 2GB t3.small node!
+              memory: "1.5Gi"
               cpu: "2000m"
 
           env:

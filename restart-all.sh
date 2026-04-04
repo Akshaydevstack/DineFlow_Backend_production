@@ -1,4 +1,6 @@
 #!/bin/bash
+# to run chmod +x restart-all.sh   
+# ./restart-all.sh  
 
 NAMESPACE="dineflow-production"
 
