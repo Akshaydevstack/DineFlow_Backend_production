@@ -1,23 +1,35 @@
 #!/bin/bash
-# to run chmod +x restart-all.sh   
+# To run ->  chmod +x restart-all.sh   
 # ./restart-all.sh  
 
 NAMESPACE="dineflow-production"
 
 echo "=========================================="
-echo "🚀 DINEFLOW SAFTEY RESTART MENU"
+echo "🚀 DINEFLOW DEPLOY & RESTART MENU"
 echo "=========================================="
-echo "1) 🌐 APIs & Gateway (Services only)"
-echo "2) 🎧 Kafka Consumers only"
-echo "3) ⚙️ Celery Workers & Beats only"
-echo "4) 🚀 ALL Apps (Safely EXCLUDES Redpanda)"
-echo "5) ❌ Cancel"
+echo "1) 🌐 Restart APIs & Gateway (Services only)"
+echo "2) 🎧 Restart Kafka Consumers only"
+echo "3) ⚙️ Restart Celery Workers & Beats only"
+echo "4) 🚀 Restart ALL Apps (Safely EXCLUDES Redpanda)"
+echo "5) 📄 APPLY All YAMLs (k8s/production/) & RESTART ALL"
+echo "6) ❌ Cancel"
 echo "=========================================="
-read -p "Select an option (1-5): " CHOICE
+read -p "Select an option (1-6): " CHOICE
 
-if [ "$CHOICE" == "5" ]; then
+if [ "$CHOICE" == "6" ]; then
     echo "🛑 Canceled."
     exit 0
+fi
+
+# Handle the Apply option before filtering restarts
+if [ "$CHOICE" == "5" ]; then
+    echo "📄 Applying all Kubernetes YAMLs recursively..."
+    # The -R flag tells it to dig into all your subfolders (ai-service, auth-service, etc.)
+    kubectl apply -f k8s/production/ -R -n $NAMESPACE
+    echo "✅ YAML Apply complete!"
+    echo "🔄 Now proceeding to restart all apps to pick up changes..."
+    # Set CHOICE to 4 so it cascades into restarting everything (except redpanda)
+    CHOICE="4"
 fi
 
 echo "🔍 Fetching deployments in $NAMESPACE..."
@@ -54,5 +66,5 @@ for DEPLOYMENT in $TARGETS; do
 done
 
 echo "------------------------------------------"
-echo "✅ All selected deployments are restarting!"
+echo "✅ All selected actions are complete!"
 echo "⏳ Watch them live: kubectl get pods -n $NAMESPACE -w"

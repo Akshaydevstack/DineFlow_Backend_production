@@ -5,7 +5,7 @@ metadata:
   namespace: dineflow-production
 data:
   KAFKA_BOOTSTRAP_SERVERS: "redpanda.dineflow-production.svc.cluster.local:9092"
-  REDIS_HOST: "dineflow-redis.xkegxs.0001.aps1.cache.amazonaws.com" 
+  REDIS_HOST: "dineflow-redis.4dbofy.0001.aps1.cache.amazonaws.com" 
   REDIS_PORT: "6379"
   POSTGRES_USER: "dineflow_admin"
   POSTGRES_PORT: "5432"

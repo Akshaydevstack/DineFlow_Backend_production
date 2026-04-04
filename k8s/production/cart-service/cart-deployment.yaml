@@ -55,7 +55,7 @@ spec:
       containers:
         - name: cart-service
           # 🚀 Upgraded: Points to your secure AWS ECR repository
-          image: 332704998262.dkr.ecr.ap-south-1.amazonaws.com/dineflow-cart:latest
+          image: 660119432940.dkr.ecr.ap-south-1.amazonaws.com/dineflow-cart:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
@@ -171,7 +171,7 @@ spec:
       containers:
         - name: consumer
           # 🚀 Upgraded: Points to the ECR Image
-          image: 332704998262.dkr.ecr.ap-south-1.amazonaws.com/dineflow-cart:latest
+          image: 660119432940.dkr.ecr.ap-south-1.amazonaws.com/dineflow-cart:latest
           imagePullPolicy: Always
           command:
             - python
