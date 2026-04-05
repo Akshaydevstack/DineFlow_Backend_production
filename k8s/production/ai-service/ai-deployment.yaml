@@ -8,6 +8,10 @@ metadata:
   namespace: dineflow-production
 spec:
   replicas: 1
+  # 🚀 ADDED FIX: Tell Kubernetes to kill the old pod BEFORE starting the new one.
+  # This breaks the memory deadlock on small nodes.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: ai-kafka-consumer
@@ -18,7 +22,6 @@ spec:
     spec:
       terminationGracePeriodSeconds: 30
       
-      # 🚀 FIX 1: Ensures consumer runs on the AI Node and tolerates the taint
       nodeSelector:
         workload-type: "ai-heavy"
       tolerations:
@@ -46,7 +49,7 @@ spec:
 
             # --- Postgres (Points to RDS) ---
             - name: POSTGRES_DB
-              value: "ai_db" # Points to the specific database we created
+              value: "ai_db" 
             - name: POSTGRES_USER
               valueFrom:
                 configMapKeyRef:
@@ -106,11 +109,10 @@ metadata:
   namespace: dineflow-production 
 spec:
   replicas: 1
+  # 🚀 UPDATED FIX: Changed to Recreate to prevent memory deadlock during deployments
+  # just like the kafka consumer above.
   strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 0
-      maxUnavailable: 1
+    type: Recreate
   selector:
     matchLabels:
       app: ai-service
@@ -119,7 +121,6 @@ spec:
       labels:
         app: ai-service
     spec:
-      # 🚀 FIX 2: NodeSelector + Tolerations to bypass the Terraform Taint
       nodeSelector:
         workload-type: "ai-heavy"
       tolerations:
@@ -140,7 +141,6 @@ spec:
               memory: "1Gi"
               cpu: "500m"
             limits:
-              # 🚀 CRITICAL FIX 3: Lowered from 3Gi to 1.5Gi so it actually fits on the 2GB t3.small node!
               memory: "1.5Gi"
               cpu: "2000m"
 
