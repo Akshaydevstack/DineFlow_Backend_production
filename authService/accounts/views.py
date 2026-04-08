@@ -2,8 +2,8 @@ from rest_framework.views import APIView
 from .serializers import RegisterSerializer, LoginWithFirebaseSerializer
 from rest_framework.response import Response
 from rest_framework import status
-from .serializers import CustomTokenObtainPairSerializer, ValidateScanSerializer, EmployeeLoginSerializer, EmployeeUpdateSerializer,StaffSerializer
-from .serializers import EmployeeReadSerializer, EmployeeCreateSerializer, SuperAdminLoginSerializer, RestaurantAdminCustomerSerializer,SuperAdminCustomerSerializer
+from .serializers import CustomTokenObtainPairSerializer, ValidateScanSerializer, EmployeeLoginSerializer, EmployeeUpdateSerializer,StaffSerializer,UserProfileSerializer
+from .serializers import EmployeeReadSerializer, EmployeeCreateSerializer, SuperAdminLoginSerializer, RestaurantAdminCustomerSerializer,SuperAdminCustomerSerializer,UserAddressSerializer
 from rest_framework import permissions
 from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -209,6 +209,65 @@ class CookieTokenRefreshView(APIView):
         )
 
         return response
+
+
+
+class UserProfileView(APIView):
+    """
+    API View to retrieve and update the profile of the authenticated user.
+    """
+
+    def get(self, request):
+        # Full details retrieval
+        user = request.user
+        serializer = UserProfileSerializer(user)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def patch(self, request):
+        # Profile update logic
+        user = request.user
+        serializer = UserProfileSerializer(user, data=request.data, partial=True)
+
+        if serializer.is_valid():
+            updated_user = serializer.save()
+
+            # Trigger Kafka event sync
+            try:
+                publish_user_updated_event(user=updated_user)
+            except Exception as e:
+                # Log error but don't block the response
+                print(f"Kafka sync failed for user {updated_user.public_id}: {e}")
+
+            return Response({
+                "message": "Profile updated successfully",
+                "data": serializer.data
+            }, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class UserAddressCreateView(APIView):
+    """
+    API View to handle creating a new address for the authenticated user.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = UserAddressSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            # Save the address and explicitly attach the authenticated user
+            address = serializer.save(user=request.user)
+            
+            return Response(
+                {
+                    "message": "Address added successfully",
+                    "data": UserAddressSerializer(address).data
+                },
+                status=status.HTTP_201_CREATED
+            )
+            
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 # Logout view

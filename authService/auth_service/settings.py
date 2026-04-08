@@ -163,7 +163,7 @@ try:
         "ALGORITHM": "RS256",
         "SIGNING_KEY": open(PRIVATE_KEY_PATH).read(),
         "VERIFYING_KEY": open(PUBLIC_KEY_PATH).read(),
-        "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
+        "ACCESS_TOKEN_LIFETIME": timedelta(minutes=300),
         "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
         "ROTATE_REFRESH_TOKENS": True,
         "BLACKLIST_AFTER_ROTATION": True,

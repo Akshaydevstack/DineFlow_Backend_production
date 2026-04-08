@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import CustomUserModel
+from .models import CustomUserModel, UserAddress
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.db import transaction
 from auth_service.firebase import firebase_auth
@@ -11,6 +11,7 @@ from kafka.user_producer import publish_user_created_event
 import threading
 import uuid
 from loguru import logger
+
 
 class ValidateScanSerializer(serializers.Serializer):
     mobile_number = serializers.CharField(max_length=15)
@@ -47,7 +48,7 @@ class ValidateScanSerializer(serializers.Serializer):
                 {"current_table_id": "This table is manually reserved. Please contact staff."}
             )
 
-                # If table is occupied
+            # If table is occupied
         if table.is_occupied:
 
             internal_username = f"{rest_id}_{mobile}"
@@ -88,12 +89,11 @@ class ValidateScanSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 {"qr_code_token": "Invalid QR Code. Please rescan."}
             )
-        
+
         if not restaurant.is_open:
             raise serializers.ValidationError(
                 {"Restaurant": "Restaurant is currently closed "}
             )
-
 
         internal_username = f"{rest_id}_{mobile}"
 
@@ -115,8 +115,6 @@ class ValidateScanSerializer(serializers.Serializer):
             })
 
         return attrs
-    
-
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -154,7 +152,8 @@ class RegisterSerializer(serializers.ModelSerializer):
                 is_active=True
             )
         except Restaurant.DoesNotExist:
-            raise serializers.ValidationError({"restaurant_id": "Invalid restaurant"})
+            raise serializers.ValidationError(
+                {"restaurant_id": "Invalid restaurant"})
 
         if current_table_id:
             try:
@@ -181,15 +180,16 @@ class RegisterSerializer(serializers.ModelSerializer):
             decoded_token = firebase_auth.verify_id_token(
                 firebase_token, check_revoked=True)
         except Exception:
-            raise serializers.ValidationError({"firebase_token": "Invalid Firebase token"})
+            raise serializers.ValidationError(
+                {"firebase_token": "Invalid Firebase token"})
 
         verified_phone = decoded_token.get("phone_number")
         if verified_phone != mobile_number:
-            raise serializers.ValidationError({"mobile_number": f"Mobile mismatch. Token is for {verified_phone}"})
+            raise serializers.ValidationError(
+                {"mobile_number": f"Mobile mismatch. Token is for {verified_phone}"})
 
         data["restaurant_obj"] = restaurant
         return data
-
 
     def create(self, validated_data):
         validated_data.pop("firebase_token")
@@ -216,7 +216,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             user.set_unusable_password()
             user.save()
 
-            # ⚡ THE FIX: Run Kafka publish ONLY after Postgres commits successfully, 
+            # ⚡ THE FIX: Run Kafka publish ONLY after Postgres commits successfully,
             # and push it to a background thread so the API responds instantly.
             transaction.on_commit(
                 lambda: threading.Thread(
@@ -231,11 +231,13 @@ class RegisterSerializer(serializers.ModelSerializer):
         """Helper method to handle the background Kafka publish safely."""
         try:
             publish_user_created_event(user=user)
-            logger.info(f"Background Kafka publish successful for user: {user.username}")
+            logger.info(
+                f"Background Kafka publish successful for user: {user.username}")
         except Exception as e:
-            # If Kafka fails, the user is still registered in Postgres, 
+            # If Kafka fails, the user is still registered in Postgres,
             # but we don't crash their login experience!
-            logger.error(f"Background Kafka publish failed for user {user.username}: {e}")
+            logger.error(
+                f"Background Kafka publish failed for user {user.username}: {e}")
 
 
 class LoginWithFirebaseSerializer(serializers.Serializer):
@@ -336,7 +338,81 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
         return token
 
+class UserAddressSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserAddress
+        fields = [
+            'id', 
+            'label', 
+            'address_line', 
+            'city',
+            'state', 
+            'pincode', 
+            'is_default'
+        ]
+        read_only_fields = ['id']
 
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    # Nesting addresses to provide "Full Details"
+    addresses = UserAddressSerializer(many=True, read_only=True)
+    restaurant_name = serializers.ReadOnlyField(source='restaurant.name')
+
+    class Meta:
+        model = CustomUserModel
+        fields = [
+            'public_id',
+            'first_name',
+            'email',
+            'mobile_number',
+            'restaurant_name',
+            'created_at',
+            'updated_at',
+            'addresses',  
+        ]
+        
+        read_only_fields = [
+            'public_id',
+            'created_at',
+            'updated_at'
+        ]
+
+    def validate_mobile_number(self, value):
+        """
+        Ensure the mobile number is unique for the user's specific restaurant.
+        Matches the database constraint: unique_mobile_per_restaurant
+        """
+        user = self.instance
+
+        # If the user is not changing their mobile number, skip validation
+        if user and user.mobile_number == value:
+            return value
+
+        # Check uniqueness based on user's role/restaurant
+        if user and user.restaurant:
+            # For customers and restaurant staff
+            mobile_exists = CustomUserModel.objects.filter(
+                restaurant=user.restaurant, 
+                mobile_number=value
+            ).exclude(id=user.id).exists()
+            
+            if mobile_exists:
+                raise serializers.ValidationError(
+                    "This mobile number is already registered at this restaurant."
+                )
+        elif user and not user.restaurant:
+            # For superadmins (restaurant is Null)
+            mobile_exists = CustomUserModel.objects.filter(
+                restaurant__isnull=True, 
+                mobile_number=value
+            ).exclude(id=user.id).exists()
+            
+            if mobile_exists:
+                raise serializers.ValidationError(
+                    "This mobile number is already registered."
+                )
+
+        return value
 
 
 
@@ -391,7 +467,7 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
 
         read_only_fields = (
             "public_id",
-            "username",   
+            "username",
         )
 
     # ----------------------------
@@ -451,7 +527,7 @@ class EmployeeUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUserModel
         fields = (
-            "public_id",            
+            "public_id",
             "first_name",
             "email",
             "mobile_number",
@@ -462,7 +538,7 @@ class EmployeeUpdateSerializer(serializers.ModelSerializer):
         )
         read_only_fields = (
             "public_id",
-            "username",   
+            "username",
         )
         extra_kwargs = {
             "first_name": {"required": False},
@@ -515,8 +591,6 @@ class EmployeeUpdateSerializer(serializers.ModelSerializer):
         return instance
 
 
-
-
 # only for employee loogin
 class EmployeeLoginSerializer(serializers.Serializer):
     user_name = serializers.CharField(required=True)
@@ -545,7 +619,6 @@ class EmployeeLoginSerializer(serializers.Serializer):
         return data
 
 
-
 class RestaurantAdminCustomerSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUserModel
@@ -561,9 +634,9 @@ class RestaurantAdminCustomerSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
-#==========================
+# ==========================
 # Super admin serializer
-#==========================
+# ==========================
 
 class SuperAdminLoginSerializer(serializers.Serializer):
     user_name = serializers.CharField(required=True)
@@ -604,6 +677,7 @@ class StaffSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at"
         ]
+
 
 class SuperAdminCustomerSerializer(serializers.ModelSerializer):
     class Meta:

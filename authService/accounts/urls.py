@@ -15,7 +15,9 @@ from .views import (
     SuperAdminRestaurantStaffView,
     BlockRestaurantStaffView,
     BlockSingleStaffView,
-    SuperAdminCustomerManagementView
+    SuperAdminCustomerManagementView,
+    UserProfileView,
+    UserAddressCreateView
 )
 
 # ==================================
@@ -40,9 +42,9 @@ urlpatterns = [
     ),
 
     path(
-    "super-admin/restaurants/staff/",
-    SuperAdminRestaurantStaffView.as_view()
-    ),  
+        "super-admin/restaurants/staff/",
+        SuperAdminRestaurantStaffView.as_view()
+    ),
 
     path(
         "super-admin/restaurants/<str:restaurant_public_id>/block-staff/",
@@ -53,7 +55,7 @@ urlpatterns = [
         "super-admin/staff/<str:public_id>/block/",
         BlockSingleStaffView.as_view()
     ),
-     path(
+    path(
         "super-admin/customers/",
         SuperAdminCustomerManagementView.as_view(),
         name="superadmin-customer-list"
@@ -104,6 +106,16 @@ urlpatterns = [
         ValidateScanView.as_view(),
         name="check-user",
     ),
+    # To edit the user profile
+    path(
+        "customer/profile/",
+        UserProfileView.as_view(),
+        name="check-user",
+    ),
+
+    path("customer/addresses/",
+         UserAddressCreateView.as_view(),
+         name="create-address"),
 
     # =============================
     # 🔹 Restaurant Admin - Customers
