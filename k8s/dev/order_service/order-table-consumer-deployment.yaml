@@ -34,5 +34,5 @@ spec:
               value: "order-db"
             - name: DB_PORT
               value: "5432"
-            - name: KAFKA_BROKER
+            - name: KAFKA_BOOTSTRAP_SERVERS
               value: "host.docker.internal:9092"

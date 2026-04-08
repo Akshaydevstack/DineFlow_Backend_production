@@ -28,7 +28,7 @@ spec:
             - consume_table_sessions
 
           env:
-            - name: KAFKA_BROKER
+            - name: KAFKA_BOOTSTRAP_SERVERS
               value: "host.docker.internal:9092"
 
             - name: DJANGO_SETTINGS_MODULE

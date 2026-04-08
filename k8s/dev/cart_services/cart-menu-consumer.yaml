@@ -27,7 +27,7 @@ spec:
             - name: K8S_ENV
               value: "true"
 
-            - name: KAFKA_BROKER
+            - name: KAFKA_BOOTSTRAP_SERVERS
               value: "host.docker.internal:9092"
 
             - name: DB_NAME

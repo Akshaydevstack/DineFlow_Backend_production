@@ -17,7 +17,8 @@ from .views import (
     BlockSingleStaffView,
     SuperAdminCustomerManagementView,
     UserProfileView,
-    UserAddressCreateView
+    UserAddressCreateView,
+    UpdateMobileWithFirebaseView
 )
 
 # ==================================
@@ -116,6 +117,10 @@ urlpatterns = [
     path("customer/addresses/",
          UserAddressCreateView.as_view(),
          name="create-address"),
+    
+    path("customer/profile/change-mobile/",
+          UpdateMobileWithFirebaseView.as_view(),
+            name="change-mobile-firebase"),
 
     # =============================
     # 🔹 Restaurant Admin - Customers

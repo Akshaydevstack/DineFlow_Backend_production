@@ -299,7 +299,7 @@ NOTIFICATION_SERVICE_TENANT_PROVISION_URL = (
     "http://notification-service.dineflow-production:8000/internal/tenants/provision"
 )
 
-KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "host.docker.internal:9092")
 
 
 

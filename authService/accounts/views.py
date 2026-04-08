@@ -2,7 +2,7 @@ from rest_framework.views import APIView
 from .serializers import RegisterSerializer, LoginWithFirebaseSerializer
 from rest_framework.response import Response
 from rest_framework import status
-from .serializers import CustomTokenObtainPairSerializer, ValidateScanSerializer, EmployeeLoginSerializer, EmployeeUpdateSerializer,StaffSerializer,UserProfileSerializer
+from .serializers import CustomTokenObtainPairSerializer, ValidateScanSerializer, EmployeeLoginSerializer, EmployeeUpdateSerializer,StaffSerializer,UserProfileSerializer,UpdateMobileWithFirebaseSerializer
 from .serializers import EmployeeReadSerializer, EmployeeCreateSerializer, SuperAdminLoginSerializer, RestaurantAdminCustomerSerializer,SuperAdminCustomerSerializer,UserAddressSerializer
 from rest_framework import permissions
 from rest_framework.permissions import AllowAny
@@ -20,6 +20,7 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from django.utils import timezone
 from .filters import EmployeeFilter
 from kafka.user_producer import publish_user_updated_event
+import threading
 
 @extend_schema(tags=["Helth"])
 class HealthCheckView(APIView):
@@ -211,32 +212,38 @@ class CookieTokenRefreshView(APIView):
         return response
 
 
-
 class UserProfileView(APIView):
     """
     API View to retrieve and update the profile of the authenticated user.
     """
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        # Full details retrieval
         user = request.user
         serializer = UserProfileSerializer(user)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def patch(self, request):
-        # Profile update logic
         user = request.user
-        serializer = UserProfileSerializer(user, data=request.data, partial=True)
+        data = request.data.copy()
+        
+        # 🔴 PREVENT DIRECT MOBILE UPDATES
+        # Force the frontend to use the secure Firebase endpoint for mobile numbers
+        if "mobile_number" in data:
+            data.pop("mobile_number")
+
+        serializer = UserProfileSerializer(user, data=data, partial=True)
 
         if serializer.is_valid():
             updated_user = serializer.save()
 
-            # Trigger Kafka event sync
-            try:
-                publish_user_updated_event(user=updated_user)
-            except Exception as e:
-                # Log error but don't block the response
-                print(f"Kafka sync failed for user {updated_user.public_id}: {e}")
+            def send_kafka_event(user_obj):
+                try:
+                    publish_user_updated_event(user=user_obj)
+                except Exception as e:
+                    print(f"Kafka sync failed for user {user_obj.public_id}: {e}")
+
+            threading.Thread(target=send_kafka_event, args=(updated_user,)).start()
 
             return Response({
                 "message": "Profile updated successfully",
@@ -245,6 +252,29 @@ class UserProfileView(APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
+class UpdateMobileWithFirebaseView(APIView):
+    """
+    View to securely update a user's mobile number using Firebase OTP.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        # Pass the request context so the serializer can access the currently logged-in user
+        serializer = UpdateMobileWithFirebaseSerializer(
+            data=request.data,
+            context={'request': request}
+        )
+
+        if serializer.is_valid():
+            updated_user = serializer.save()
+            
+            return Response({
+                "message": "Mobile number updated successfully.",
+                "data": UserProfileSerializer(updated_user).data
+            }, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class UserAddressCreateView(APIView):
     """

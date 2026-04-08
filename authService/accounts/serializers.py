@@ -7,7 +7,7 @@ from django.contrib.auth import authenticate
 from restaurant.models import Restaurant
 from restaurant.models import Restaurant, Table, Reservation
 from django.utils import timezone
-from kafka.user_producer import publish_user_created_event
+from kafka.user_producer import publish_user_updated_event
 import threading
 import uuid
 from loguru import logger
@@ -230,7 +230,7 @@ class RegisterSerializer(serializers.ModelSerializer):
     def _publish_in_background(self, user):
         """Helper method to handle the background Kafka publish safely."""
         try:
-            publish_user_created_event(user=user)
+            publish_user_updated_event(user=user)
             logger.info(
                 f"Background Kafka publish successful for user: {user.username}")
         except Exception as e:
@@ -414,6 +414,86 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
         return value
 
+
+class UpdateMobileWithFirebaseSerializer(serializers.Serializer):
+    mobile_number = serializers.CharField(required=True)
+    firebase_token = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        mobile_number = data.get("mobile_number")
+        firebase_token = data.get("firebase_token")
+        user = self.context['request'].user  # Passed from the view
+
+        # 1. Verify Firebase Token
+        try:
+            # This blocks, but it HAS to block for security.
+            decoded_token = firebase_auth.verify_id_token(
+                firebase_token, check_revoked=True
+            )
+        except firebase_auth.InvalidIdTokenError:
+            raise serializers.ValidationError({"firebase_token": "Invalid Firebase token"})
+        except firebase_auth.ExpiredIdTokenError:
+            raise serializers.ValidationError({"firebase_token": "Expired Firebase token"})
+        except Exception:
+            raise serializers.ValidationError({"firebase_token": "Failed to verify Firebase token"})
+
+        # 2. Check if the verified phone matches the requested phone
+        verified_phone = decoded_token.get("phone_number")
+        if verified_phone != mobile_number:
+            raise serializers.ValidationError(
+                {"mobile_number": f"Mobile mismatch. Token is for {verified_phone}"}
+            )
+
+        if user.mobile_number == mobile_number:
+            raise serializers.ValidationError(
+                {"mobile_number": "This is already your current mobile number."}
+            )
+
+        # 3. Check Database Uniqueness Constraints
+        if user.restaurant:
+            exists = CustomUserModel.objects.filter(
+                restaurant=user.restaurant, 
+                mobile_number=mobile_number
+            ).exclude(id=user.id).exists()
+        else:
+            exists = CustomUserModel.objects.filter(
+                restaurant__isnull=True, 
+                mobile_number=mobile_number
+            ).exclude(id=user.id).exists()
+
+        if exists:
+            raise serializers.ValidationError(
+                {"mobile_number": "This mobile number is already registered at this restaurant."}
+            )
+
+        return data
+
+    def update(self, instance, validated_data):
+        new_mobile = validated_data.get('mobile_number')
+        instance.mobile_number = new_mobile
+
+        # ⚡ OPTIMIZED TRANSACTION BLOCK
+        with transaction.atomic():
+            # Triggers CustomUserModel.save() to automatically regenerate internal username
+            instance.save() 
+
+            # ⚡ THE FIX: Run Kafka publish ONLY after Postgres commits successfully
+            transaction.on_commit(
+                lambda: threading.Thread(
+                    target=self._publish_in_background,
+                    args=(instance,)
+                ).start()
+            )
+
+        return instance
+
+    def _publish_in_background(self, user):
+        """Helper method to handle the background Kafka publish safely."""
+        try:
+            publish_user_updated_event(user=user)
+            logger.info(f"Background Kafka publish successful for user update: {user.username}")
+        except Exception as e:
+            logger.error(f"Background Kafka publish failed for user update {user.username}: {e}")
 
 
 # ===============================

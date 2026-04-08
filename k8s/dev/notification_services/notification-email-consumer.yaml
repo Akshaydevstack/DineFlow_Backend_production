@@ -28,7 +28,7 @@ spec:
 
           env:
             # Kafka
-            - name: KAFKA_BROKER
+            - name: KAFKA_BOOTSTRAP_SERVERS
               value: "host.docker.internal:9092"
 
             # AWS (from secret)

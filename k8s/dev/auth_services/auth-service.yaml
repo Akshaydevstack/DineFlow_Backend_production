@@ -46,6 +46,9 @@ spec:
             - containerPort: 8000
 
           env:
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: "host.docker.internal:9092"
+
             - name: K8S_ENV
               value: "true"
             - name: DB_NAME

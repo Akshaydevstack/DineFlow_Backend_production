@@ -16,7 +16,7 @@ from app.db.pgvector_client import setup_vector_tables
 # --------------------------------------------------
 CONSUMER_NAME = "ai-service-consumer"
 DLQ_TOPIC = "ai.service.dlq"
-KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "host.docker.internal:9092")
 
 # ✅ Added new order and kitchen topics
 VALID_TOPICS = {
