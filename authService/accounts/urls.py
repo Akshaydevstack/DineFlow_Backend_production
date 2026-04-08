@@ -18,7 +18,8 @@ from .views import (
     SuperAdminCustomerManagementView,
     UserProfileView,
     UserAddressCreateView,
-    UpdateMobileWithFirebaseView
+    UpdateMobileWithFirebaseView,
+    CheckMobileAvailabilityView
 )
 
 # ==================================
@@ -114,6 +115,10 @@ urlpatterns = [
         name="check-user",
     ),
 
+    path("customer/profile/check-mobile/",
+     CheckMobileAvailabilityView.as_view(), 
+     name="check-mobile"),
+     
     path("customer/addresses/",
          UserAddressCreateView.as_view(),
          name="create-address"),

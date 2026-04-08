@@ -321,6 +321,38 @@ class CustomLogoutView(APIView):
         return response
 
 
+class CheckMobileAvailabilityView(APIView):
+    """
+    Checks if a mobile number is already taken before triggering Firebase OTP.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        mobile_number = request.data.get('mobile_number')
+        if not mobile_number:
+            return Response({"error": "mobile_number is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        user = request.user
+        
+        # Check Uniqueness Constraints
+        if user.restaurant:
+            exists = CustomUserModel.objects.filter(
+                restaurant=user.restaurant, 
+                mobile_number=mobile_number
+            ).exclude(id=user.id).exists()
+        else:
+            exists = CustomUserModel.objects.filter(
+                restaurant__isnull=True, 
+                mobile_number=mobile_number
+            ).exclude(id=user.id).exists()
+
+        if exists:
+            return Response({
+                "available": False, 
+                "message": "This mobile number is already registered at this restaurant."
+            }, status=status.HTTP_200_OK)
+        
+        return Response({"available": True}, status=status.HTTP_200_OK)
 # ======================================================================================================
 # 🔹 Restaurant-admin views
 # ======================================================================================================

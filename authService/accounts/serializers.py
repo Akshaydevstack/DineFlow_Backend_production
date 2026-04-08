@@ -496,6 +496,8 @@ class UpdateMobileWithFirebaseSerializer(serializers.Serializer):
             logger.error(f"Background Kafka publish failed for user update {user.username}: {e}")
 
 
+
+
 # ===============================
 # 🔹 Restaurant-admin-serializers
 # ===============================
