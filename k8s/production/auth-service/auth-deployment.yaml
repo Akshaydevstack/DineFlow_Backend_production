@@ -39,6 +39,19 @@ spec:
           env:
             - name: K8S_ENV
               value: "true"
+              
+            # 🌐 --- Internal Microservice Provisioning URLs (Production Namespace) ---
+            - name: ORDER_SERVICE_TENANT_PROVISION_URL
+              value: "http://order-service.dineflow-production.svc.cluster.local:8000/internal/tenants/provision"
+            - name: MENU_SERVICE_TENANT_PROVISION_URL
+              value: "http://menu-service.dineflow-production.svc.cluster.local:8000/internal/tenants/provision"
+            - name: CART_SERVICE_TENANT_PROVISION_URL
+              value: "http://cart-service.dineflow-production.svc.cluster.local:8000/internal/tenants/provision"
+            - name: KITCHEN_SERVICE_TENANT_PROVISION_URL
+              value: "http://kitchen-service.dineflow-production.svc.cluster.local:8000/internal/tenants/provision"
+            - name: NOTIFICATION_SERVICE_TENANT_PROVISION_URL
+              value: "http://notification-service.dineflow-production.svc.cluster.local:8000/internal/tenants/provision"
+
             # --- Kafka ---
             - name: KAFKA_BOOTSTRAP_SERVERS
               valueFrom:

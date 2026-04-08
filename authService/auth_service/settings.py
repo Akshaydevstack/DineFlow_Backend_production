@@ -258,46 +258,31 @@ This service trusts headers injected by the gateway.
 }
 
 
-# ORDER_SERVICE_TENANT_PROVISION_URL = (
-#     "http://order-service.dineflow-dev:8000/internal/tenants/provision"
-# )
-
-# MENU_SERVICE_TENANT_PROVISION_URL = (
-#     "http://menu-service.dineflow-dev:8000/internal/tenants/provision"
-# )
-
-# CART_SERVICE_TENANT_PROVISION_URL = (
-#     "http://cart-service.dineflow-dev:8000/internal/tenants/provision"
-# )
-
-# KITCHEN_SERVICE_TENANT_PROVISION_URL = (
-#     "http://kitchen-service.dineflow-dev:8000/internal/tenants/provision"
-# )
-
-# NOTIFICATION_SERVICE_TENANT_PROVISION_URL = (
-#     "http://notification-service.dineflow-dev:8000/internal/tenants/provision"
-# )
-
-
-ORDER_SERVICE_TENANT_PROVISION_URL = (
-    "http://order-service.dineflow-production:8000/internal/tenants/provision"
+ORDER_SERVICE_TENANT_PROVISION_URL = os.getenv(
+    "ORDER_SERVICE_TENANT_PROVISION_URL",
+    "http://order-service:8000/internal/tenants/provision"
 )
 
-MENU_SERVICE_TENANT_PROVISION_URL = (
-    "http://menu-service.dineflow-production:8000/internal/tenants/provision"
+MENU_SERVICE_TENANT_PROVISION_URL = os.getenv(
+    "MENU_SERVICE_TENANT_PROVISION_URL",
+    "http://menu-service:8000/internal/tenants/provision"
 )
 
-CART_SERVICE_TENANT_PROVISION_URL = (
-    "http://cart-service.dineflow-production:8000/internal/tenants/provision"
+CART_SERVICE_TENANT_PROVISION_URL = os.getenv(
+    "CART_SERVICE_TENANT_PROVISION_URL",
+    "http://cart-service:8000/internal/tenants/provision"
 )
 
-KITCHEN_SERVICE_TENANT_PROVISION_URL = (
-    "http://kitchen-service.dineflow-production:8000/internal/tenants/provision"
+KITCHEN_SERVICE_TENANT_PROVISION_URL = os.getenv(
+    "KITCHEN_SERVICE_TENANT_PROVISION_URL",
+    "http://kitchen-service:8000/internal/tenants/provision"
 )
 
-NOTIFICATION_SERVICE_TENANT_PROVISION_URL = (
-    "http://notification-service.dineflow-production:8000/internal/tenants/provision"
+NOTIFICATION_SERVICE_TENANT_PROVISION_URL = os.getenv(
+    "NOTIFICATION_SERVICE_TENANT_PROVISION_URL",
+    "http://notification-service:8000/internal/tenants/provision"
 )
+
 
 KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "host.docker.internal:9092")
 

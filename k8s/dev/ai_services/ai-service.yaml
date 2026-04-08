@@ -42,6 +42,16 @@ spec:
             - name: K8S_ENV
               value: "true"
 
+            # --- Internal Microservice URLs (Dev Namespace) ---
+            - name: CART_SERVICE_URL
+              value: "http://cart-service.dineflow-dev.svc.cluster.local:8000"
+
+            - name: ORDERS_SERVICE_URL
+              value: "http://order-service.dineflow-dev.svc.cluster.local:8000"
+              
+            - name: MENU_SERVICE_URL
+              value: "http://menu-service.dineflow-dev.svc.cluster.local:8000"
+
             # --- Redis ---
             - name: REDIS_HOST
               value: "redis"

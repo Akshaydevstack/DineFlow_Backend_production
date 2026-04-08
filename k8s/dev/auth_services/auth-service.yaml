@@ -61,6 +61,19 @@ spec:
               value: "auth-db"
             - name: DB_PORT
               value: "5432"
+
+            # 🌐 --- Internal Microservice Provisioning URLs (Dev Namespace) ---
+            - name: ORDER_SERVICE_TENANT_PROVISION_URL
+              value: "http://order-service.dineflow-dev.svc.cluster.local:8000/internal/tenants/provision"
+            - name: MENU_SERVICE_TENANT_PROVISION_URL
+              value: "http://menu-service.dineflow-dev.svc.cluster.local:8000/internal/tenants/provision"
+            - name: CART_SERVICE_TENANT_PROVISION_URL
+              value: "http://cart-service.dineflow-dev.svc.cluster.local:8000/internal/tenants/provision"
+            - name: KITCHEN_SERVICE_TENANT_PROVISION_URL
+              value: "http://kitchen-service.dineflow-dev.svc.cluster.local:8000/internal/tenants/provision"
+            - name: NOTIFICATION_SERVICE_TENANT_PROVISION_URL
+              value: "http://notification-service.dineflow-dev.svc.cluster.local:8000/internal/tenants/provision"
+
             # 1️⃣ Tell Firebase exactly where to find the mounted secret file
             - name: GOOGLE_APPLICATION_CREDENTIALS
               value: "/etc/secrets/firebase/firebase-credentials.json"

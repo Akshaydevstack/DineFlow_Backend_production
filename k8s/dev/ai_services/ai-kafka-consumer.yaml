@@ -29,6 +29,15 @@ spec:
             - name: KAFKA_BOOTSTRAP_SERVERS
               value: "host.docker.internal:9092"
 
+            - name: CART_SERVICE_URL
+              value: "http://cart-service.dineflow-dev.svc.cluster.local:8000"
+              
+            - name: ORDERS_SERVICE_URL
+              value: "http://order-service.dineflow-dev.svc.cluster.local:8000"
+
+            - name: MENU_SERVICE_URL
+              value: "http://menu-service.dineflow-dev.svc.cluster.local:8000"
+
             - name: POSTGRES_DB
               value: "ai_db"
             - name: POSTGRES_USER
