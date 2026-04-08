@@ -30,6 +30,7 @@ from datetime import datetime, timedelta
 from django.utils.dateparse import parse_datetime
 from orders.kafka.producer import publish_session_closed
 from .models import MenuItemSnapshot
+import threading
 
 
 
@@ -192,8 +193,12 @@ class OrderCreateView (APIView):
                     zone_name=table_snapshot.zone_name,
                 )
 
+                # ⚡ FIX 1: Run session started event in a background thread
                 transaction.on_commit(
-                    lambda: publish_session_started(session, user_id)
+                    lambda: threading.Thread(
+                        target=publish_session_started,
+                        args=(session, user_id)
+                    ).start()
                 )
 
             # --------------------------------------------------
@@ -234,8 +239,12 @@ class OrderCreateView (APIView):
 
             order.recalculate_totals()
 
+            # ⚡ FIX 2: Run order placed event in a background thread
             transaction.on_commit(
-                lambda: publish_order_placed(order)
+                lambda: threading.Thread(
+                    target=publish_order_placed, 
+                    args=(order,)
+                ).start()
             )
 
             store_idempotency_key(
@@ -249,6 +258,9 @@ class OrderCreateView (APIView):
             status=status.HTTP_201_CREATED,
         )
 
+
+
+# List all the orders for the user
 
 class OrderListView(APIView):
 
