@@ -715,6 +715,32 @@ class RestaurantAdminCustomerSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
+class AdminProfileUpdateSerializer(serializers.ModelSerializer):
+    current_password = serializers.CharField(write_only=True, required=True)
+
+    class Meta:
+        model = CustomUserModel
+        # Added 'email' to the allowed fields
+        fields = ['first_name', 'last_name', 'email', 'current_password']
+
+    def validate_current_password(self, value):
+        # The user object will be passed from the view via context
+        user = self.context.get('user')
+        
+        if not user or not user.check_password(value):
+            raise serializers.ValidationError("Incorrect current password.")
+        
+        return value
+
+    def validate_email(self, value):
+        user = self.context.get('user')
+        
+        # Check if the new email is already used by a DIFFERENT user
+        if CustomUserModel.objects.filter(email=value).exclude(id=user.id).exists():
+            raise serializers.ValidationError("This email address is already in use by another account.")
+            
+        return value
+    
 
 # ==========================
 # Super admin serializer

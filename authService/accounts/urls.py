@@ -19,7 +19,10 @@ from .views import (
     UserProfileView,
     UserAddressCreateView,
     UpdateMobileWithFirebaseView,
-    CheckMobileAvailabilityView
+    CheckMobileAvailabilityView,
+    AdminPasswordResetOTPView,
+    AdminPasswordResetConfirmView,
+    AdminProfileUpdateView
 )
 
 # ==================================
@@ -146,6 +149,19 @@ urlpatterns = [
         "restaurant-admin/customers-status/",
         AdminCustomersStatsView.as_view(),
         name="restaurant-admin-customer-detail",
+    ),
+    path('restaurant-admin/password-reset/request-otp/',
+          AdminPasswordResetOTPView.as_view(), 
+          name='admin-request-otp'),
+
+    path('restaurant-admin/password-reset/confirm/',
+          AdminPasswordResetConfirmView.as_view(), 
+          name='admin-reset-confirm'),
+
+    path(
+        'restaurant-admin/profile/', 
+        AdminProfileUpdateView.as_view(), 
+        name='admin-profile-update'
     ),
 
     # =============================

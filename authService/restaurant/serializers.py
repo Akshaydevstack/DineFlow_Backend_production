@@ -251,13 +251,14 @@ class RestaurantAdminCreateSerializer(serializers.ModelSerializer):
 
 
 
-
-
 # =============================
 # 🔹 Restaurant-admin serializer
 # =============================
 
 class RestaurantAdminRestaurantSerializer(serializers.ModelSerializer):
+    
+    # 1️⃣ Add a custom field for the admin details
+    admin_details = serializers.SerializerMethodField()
 
     class Meta:
         model = Restaurant
@@ -279,15 +280,45 @@ class RestaurantAdminRestaurantSerializer(serializers.ModelSerializer):
             "gst_number",
             "fssai_license",
             "updated_at",
+            "created_at",
+            "admin_details",  # 2️⃣ Add it to the fields list
         ]
 
         read_only_fields = [
             "public_id",
             "updated_at",
+            "admin_details",  # 3️⃣ Make sure it cannot be updated via this endpoint
         ]
 
-    def validate(self, data):
+    # 4️⃣ Define how to fetch the admin details
+    def get_admin_details(self, obj):
+        """
+        Fetches the primary admin associated with this restaurant.
+        Assumes CustomUserModel has a ForeignKey/OneToOne to Restaurant.
+        """
+        # Adjust the filter condition based on your exact model fields!
+        # If Restaurant model has an 'admin' or 'owner' field directly, you would do:
+        # admin = obj.owner 
+        
+        admin = CustomUserModel.objects.filter(
+            restaurant=obj, 
+            role="restaurant-admin"
+        ).first()
 
+        if admin:
+            return {
+                "public_id": admin.public_id,
+                "first_name": admin.first_name,
+                "last_name": admin.last_name,
+                "email": admin.email,
+                "mobile_number": admin.mobile_number,
+                "created_at": admin.created_at,
+                "updated_at": admin.updated_at
+            }
+        
+        return None
+
+    def validate(self, data):
         opening_time = data.get("opening_time")
         closing_time = data.get("closing_time")
 
@@ -297,7 +328,6 @@ class RestaurantAdminRestaurantSerializer(serializers.ModelSerializer):
             )
 
         return data
-
 
 
 class RestaurantAdminZoneSerializer(serializers.ModelSerializer):

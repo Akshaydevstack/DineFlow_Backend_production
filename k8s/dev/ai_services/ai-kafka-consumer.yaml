@@ -24,6 +24,8 @@ spec:
             - |
               from app.kafka.menu_consumer import consume_events
               consume_events()
+              
+            - app.kafka.replay_ai_dlq
 
           env:
             - name: KAFKA_BOOTSTRAP_SERVERS
@@ -63,7 +65,7 @@ spec:
           resources:
             requests:
               cpu: "100m"
-              memory: "256Mi"
+              memory: "512Mi"
             limits:
               cpu: "500m"
-              memory: "512Mi"
+              memory: "1Gi"

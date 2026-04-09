@@ -163,12 +163,10 @@ class SuperAdminRestaurantManagementView(ModelViewSet):
 
 
 class RestaurantAdminRestaurantView(RetrieveUpdateAPIView):
-
     serializer_class = RestaurantAdminRestaurantSerializer
     lookup_field = "public_id"
 
     def get_object(self):
-
         restaurant_id = self.request.headers.get("X-Restaurant-Id")
 
         if not restaurant_id:
@@ -374,6 +372,7 @@ class WaiterZoneListView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+
 # All tables avilabe and its statuse
 
 class WaiterTableListView(APIView):
@@ -449,6 +448,7 @@ class WaiterTableListView(APIView):
 
         serializer = WaiterTableSerializer(paginated_tables, many=True)
         return paginator.get_paginated_response(serializer.data)
+
 
 
 # check if the tabel is free or not

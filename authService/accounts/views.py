@@ -3,7 +3,7 @@ from .serializers import RegisterSerializer, LoginWithFirebaseSerializer
 from rest_framework.response import Response
 from rest_framework import status
 from .serializers import CustomTokenObtainPairSerializer, ValidateScanSerializer, EmployeeLoginSerializer, EmployeeUpdateSerializer,StaffSerializer,UserProfileSerializer,UpdateMobileWithFirebaseSerializer
-from .serializers import EmployeeReadSerializer, EmployeeCreateSerializer, SuperAdminLoginSerializer, RestaurantAdminCustomerSerializer,SuperAdminCustomerSerializer,UserAddressSerializer
+from .serializers import EmployeeReadSerializer, EmployeeCreateSerializer, SuperAdminLoginSerializer, RestaurantAdminCustomerSerializer,SuperAdminCustomerSerializer,UserAddressSerializer,AdminProfileUpdateSerializer
 from rest_framework import permissions
 from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -21,6 +21,11 @@ from django.utils import timezone
 from .filters import EmployeeFilter
 from kafka.user_producer import publish_user_updated_event
 import threading
+import random
+from django.core.cache import cache
+from django.conf import settings
+from utils.send_email import send_email_background
+
 
 @extend_schema(tags=["Helth"])
 class HealthCheckView(APIView):
@@ -28,6 +33,7 @@ class HealthCheckView(APIView):
 
     def get(self, request):
         return Response({"status": "ok"})
+
 
 
 # check if the user is already exist
@@ -353,6 +359,9 @@ class CheckMobileAvailabilityView(APIView):
             }, status=status.HTTP_200_OK)
         
         return Response({"available": True}, status=status.HTTP_200_OK)
+    
+
+
 # ======================================================================================================
 # 🔹 Restaurant-admin views
 # ======================================================================================================
@@ -697,6 +706,147 @@ class AdminCustomersStatsView(APIView):
         })
 
 
+class AdminPasswordResetOTPView(APIView):
+    """
+    Step 1: Request an OTP to be sent to the Restaurant Admin's email.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        email = request.data.get("email")
+        
+        if not email:
+            return Response({"error": "Email is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Ensure the user exists and is specifically a restaurant admin
+        user = CustomUserModel.objects.filter(email=email, role="restaurant-admin").first()
+        
+        if not user:
+            return Response(
+                {"error": "No active restaurant admin found with this email."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if not user.is_active:
+            return Response({"error": "This account is blocked."}, status=status.HTTP_403_FORBIDDEN)
+
+        # Generate a 6-digit OTP
+        otp = str(random.randint(100000, 999999))
+
+        # Store OTP in cache for 10 minutes (600 seconds)
+        cache_key = f"admin_pwd_reset_otp_{email}"
+        cache.set(cache_key, otp, timeout=600)
+
+        # 2. Prepare the email arguments
+        subject = "DineFlow - Admin Password Reset OTP"
+        message = f"Hello {user.first_name or 'Admin'},\n\nYour OTP for password reset is: {otp}\n\nThis OTP is valid for 10 minutes. If you did not request this, please ignore this email."
+        
+        # 3. Fire and forget! Start the thread and move on immediately.
+        email_thread = threading.Thread(
+            target=send_email_background,
+            args=(subject, message, settings.DEFAULT_FROM_EMAIL, [email])
+        )
+        email_thread.start()
+
+        # The API responds instantly while the email is being sent in the background
+        return Response({"message": "OTP sent successfully to your email."}, status=status.HTTP_200_OK)
+
+
+
+class AdminPasswordResetConfirmView(APIView):
+    """
+    Step 2: Verify the OTP and set the new password.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        email = request.data.get("email")
+        otp_entered = request.data.get("otp")
+        new_password = request.data.get("new_password")
+
+        # Basic validation
+        if not all([email, otp_entered, new_password]):
+            return Response(
+                {"error": "Email, otp, and new_password are required."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate OTP from cache
+        cache_key = f"admin_pwd_reset_otp_{email}"
+        cached_otp = cache.get(cache_key)
+
+        if not cached_otp or str(cached_otp) != str(otp_entered):
+            return Response({"error": "Invalid or expired OTP."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Fetch the user
+        user = CustomUserModel.objects.filter(email=email, role="restaurant-admin").first()
+        if not user:
+            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Change the password
+        user.set_password(new_password)
+        
+        # Increment auth_version to invalidate all existing tokens (Log out from all devices)
+        current_version = int(user.auth_version.lstrip("v"))
+        user.auth_version = f"v{current_version + 1}"
+        
+        user.save()
+
+        # Delete the OTP from cache so it cannot be reused
+        cache.delete(cache_key)
+
+        return Response({"message": "Password has been successfully changed."}, status=status.HTTP_200_OK)
+    
+
+class AdminProfileUpdateView(APIView):
+    """
+    Allows a Restaurant Admin to update their personal details, including email.
+    Requires verifying their current password.
+    Only allows PATCH requests.
+    """
+    http_method_names = ['patch']
+    permission_classes = [permissions.AllowAny] 
+
+    def patch(self, request, *args, **kwargs):
+        user_id = request.headers.get("X-User-Id")
+        
+        if not user_id:
+            return Response(
+                {"error": "X-User-Id header missing. Unauthorized."}, 
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        user = CustomUserModel.objects.filter(public_id=user_id, role="restaurant-admin").first()
+        
+        if not user:
+            return Response(
+                {"error": "Admin user not found."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        serializer = AdminProfileUpdateSerializer(
+            user, 
+            data=request.data, 
+            partial=True, 
+            context={'user': user}
+        )
+
+        if serializer.is_valid():
+            # If the user changed their email, it will be saved here automatically
+            serializer.save()
+            
+            return Response({
+                "message": "Admin profile updated successfully.",
+                "admin_details": {
+                    "first_name": user.first_name,
+                    "email": user.email,  # Returns the fresh, potentially updated email
+                    "created_at": user.created_at,
+                    "updated_at": user.updated_at
+                    
+                }
+            }, status=status.HTTP_200_OK)
+            
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 # =============================

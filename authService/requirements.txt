@@ -21,6 +21,8 @@ firebase-admin==6.5.0
 # Database
 # ==========================================
 psycopg2-binary==2.9.9
+redis==5.0.3
+django-redis==5.4.0
 
 # ==========================================
 # Message Broker

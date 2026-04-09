@@ -288,6 +288,30 @@ KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "host.docker.internal:9092")
 
 
 
+# --- Caches ---
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": f"redis://{os.getenv('REDIS_HOST', 'redis')}:{os.getenv('REDIS_PORT', '6379')}/1",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }
+    }
+}
+
+# --- Email Configuration ---
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_USE_TLS = True
+
+# ✅ Dynamically pull EVERYTHING from the OS environment variables injected by Kubernetes
+EMAIL_HOST = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
+EMAIL_PORT = int(os.getenv('SMTP_PORT', 587))
+
+EMAIL_HOST_USER = os.getenv('SMTP_USERNAME', 'dineflow.notification.services@gmail.com')
+EMAIL_HOST_PASSWORD = os.getenv('SMTP_PASSWORD', '')
+
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'dineflow.notification.services@gmail.com')
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
