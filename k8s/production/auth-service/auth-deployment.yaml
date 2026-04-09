@@ -65,21 +65,25 @@ spec:
                 configMapKeyRef:
                   name: dineflow-config
                   key: REDIS_HOST
+
             - name: REDIS_PORT
               valueFrom:
                 configMapKeyRef:
                   name: dineflow-config
+                  key: REDIS_PORT
             
             # --- Email / SMTP ---
             - name: SMTP_SERVER
               value: "smtp.gmail.com"
             - name: SMTP_PORT
               value: "587"
+
             - name: SMTP_USERNAME
               valueFrom:
                 secretKeyRef:
                   name: smtp-credentials
                   key: SMTP_USER
+
             - name: SMTP_PASSWORD
               valueFrom:
                 secretKeyRef:
