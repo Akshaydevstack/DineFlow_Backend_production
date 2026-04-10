@@ -7,6 +7,61 @@ from decimal import Decimal
 from django.db import transaction
 
 
+
+class Restaurant(models.Model):
+    """
+    Read-replica model in the Order Service.
+    Populated by listening to Kafka 'restaurant.updated' events.
+    """
+    public_id = models.CharField(
+        max_length=20, 
+        unique=True, 
+        primary_key=True, 
+        editable=False
+    )
+    
+    name = models.CharField(max_length=255)
+    slug = models.CharField(max_length=300, null=True, blank=True)
+    
+    # Location Data (Crucial for Geofencing)
+    address = models.TextField(null=True, blank=True)
+    city = models.CharField(max_length=100, db_index=True, null=True, blank=True)
+    state = models.CharField(max_length=100, null=True, blank=True)
+    pincode = models.CharField(max_length=10, null=True, blank=True)
+    
+    latitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True
+    )
+    longitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True
+    )
+
+    # Contact Info
+    phone = models.CharField(max_length=20, null=True, blank=True)
+    email = models.EmailField(null=True, blank=True)
+
+    # Status & Hours
+    is_open = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
+    opening_time = models.TimeField(null=True, blank=True)
+    closing_time = models.TimeField(null=True, blank=True)
+
+    # Sync Tracking
+    restaurant_version = models.CharField(max_length=10, default="v1")
+    updated_at = models.DateTimeField() # Store the exact time from the event payload
+
+    class Meta:
+        db_table = "order_service_restaurant_replica"
+        indexes = [
+            models.Index(fields=["is_active", "is_open"]),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.public_id})"
+
+
+
+
 class TableSnapshot(models.Model):
     restaurant_id = models.CharField(max_length=20, db_index=True)
     restaurant_name = models.CharField(max_length=20, db_index=True)

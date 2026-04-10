@@ -514,3 +514,78 @@ spec:
                 configMapKeyRef:
                   name: dineflow-config
                   key: POSTGRES_PORT
+
+---
+# ==========================================
+# 7. RESTAURANT CONSUMER
+# ==========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-restaurant-consumer
+  namespace: dineflow-production
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-restaurant-consumer
+  template:
+    metadata:
+      labels:
+        app: order-restaurant-consumer
+    spec:
+      containers:
+        - name: consumer
+          image: 660119432940.dkr.ecr.ap-south-1.amazonaws.com/dineflow-order:latest
+          imagePullPolicy: Always
+          command:
+            - python
+            - manage.py
+            - consume_restaurant_events
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          env:
+            - name: K8S_ENV
+              value: "true"
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_PORT
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+            - name: DB_NAME
+              value: "order_db"
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_PORT

@@ -193,7 +193,6 @@ class OrderCreateView (APIView):
                     zone_name=table_snapshot.zone_name,
                 )
 
-                # ⚡ FIX 1: Run session started event in a background thread
                 transaction.on_commit(
                     lambda: threading.Thread(
                         target=publish_session_started,

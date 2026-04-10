@@ -287,6 +287,7 @@ class RestaurantAdminRestaurantSerializer(serializers.ModelSerializer):
         read_only_fields = [
             "public_id",
             "updated_at",
+            "created_at",
             "admin_details",  # 3️⃣ Make sure it cannot be updated via this endpoint
         ]
 
@@ -296,10 +297,6 @@ class RestaurantAdminRestaurantSerializer(serializers.ModelSerializer):
         Fetches the primary admin associated with this restaurant.
         Assumes CustomUserModel has a ForeignKey/OneToOne to Restaurant.
         """
-        # Adjust the filter condition based on your exact model fields!
-        # If Restaurant model has an 'admin' or 'owner' field directly, you would do:
-        # admin = obj.owner 
-        
         admin = CustomUserModel.objects.filter(
             restaurant=obj, 
             role="restaurant-admin"
@@ -328,6 +325,27 @@ class RestaurantAdminRestaurantSerializer(serializers.ModelSerializer):
             )
 
         return data
+
+    # -----------------------
+    # Event Triggers (Kafka)
+    # -----------------------
+    def update(self, instance, validated_data):
+        """
+        Override update to publish Kafka event when restaurant details 
+        (like location, name, hours) are changed by the admin.
+        """
+        # 1. Update the instance via standard DRF flow
+        instance = super().update(instance, validated_data)
+        
+        # 2. Fire the Kafka event so other services (Order, Cart, Menu) know about the change
+        try:
+            publish_restaurant_event(instance, event_type="restaurant.updated")
+        except Exception as e:
+            logger.error(f"❌ Failed to publish restaurant.updated event for {instance.public_id}: {e}")
+            
+        return instance
+
+
 
 
 class RestaurantAdminZoneSerializer(serializers.ModelSerializer):
