@@ -76,7 +76,7 @@ class OrderCreateSerializer(serializers.Serializer):
                 )
                 
                 # ⚡ Check if distance exceeds 20 meters
-                if distance > 20:
+                if distance > 50:
                     raise serializers.ValidationError(
                         {"location": f"You are too far from the restaurant to place an order. Please move closer. (Distance: {int(distance)}m)"}
                     )
