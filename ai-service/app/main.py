@@ -11,18 +11,12 @@ from app.routers import views
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# 2. Lifespan context manager (replaces old startup/shutdown events)
+# 2. Lifespan context manager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # --- STARTUP LOGIC ---
     logger.info("Starting up DineFlow AI Service...")
-    # e.g., Load ML models, initialize database connection pools here
-    
-    yield # App runs and serves requests here
-    
-    # --- SHUTDOWN LOGIC ---
+    yield 
     logger.info("Shutting down DineFlow AI Service...")
-    # e.g., Clean up DB connections, clear memory here
 
 # 3. Determine environment to secure API Docs
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
@@ -33,17 +27,14 @@ app = FastAPI(
     version="1.0.0",
     root_path="/api/ai",
     lifespan=lifespan,
-    # Disable Swagger/ReDoc UIs in production for security, 
-    # or keep them if you need external developers to see them.
     docs_url=None if is_production else "/docs",
     redoc_url=None if is_production else "/redoc",
 )
 
-
-# 5. GZip Middleware (Compresses responses to save bandwidth)
+# 5. GZip Middleware
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-# 6. Global Exception Handler (Prevents raw tracebacks from leaking to users)
+# 6. Global Exception Handler
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Unhandled exception: {exc}", exc_info=True)

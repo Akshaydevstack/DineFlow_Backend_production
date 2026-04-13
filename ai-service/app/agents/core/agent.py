@@ -11,7 +11,7 @@ from langgraph.prebuilt import create_react_agent
 
 from app.agents.tools.rag_tools import tool_search_menu, tool_get_past_orders
 from app.agents.tools.cart_tools import cart_add, cart_update, cart_remove, cart_clear, cart_view
-from app.agents.tools.order_tools import place_order, cancel_order
+from app.agents.tools.order_tools import place_order, cancel_order , set_user_location
 from app.agents.tools.restaurant_tools import tool_check_table_availability, tool_get_restaurant_info
 from app.agents.tools.recommendation_tools import tool_get_personalized_recommendations
 from app.agents.core.memory import get_session, save_session
@@ -19,7 +19,6 @@ from app.agents.tools.email_tools import tool_send_receipt, tool_send_feedback
 
 # ✅ Import DB fetchers for real-time context injection
 from app.db.pgvector_client import get_restaurant_metadata, get_table_metadata, get_user_metadata
-
 
 TOOLS = [
     tool_search_menu,
@@ -123,7 +122,6 @@ def _format_context(user_id: str, restaurant_id: str, session: dict, user_meta: 
         f"restaurant_id: {restaurant_id}",
     ]
 
-    # ✅ Inject full user details block so the AI knows everything!
     lines.append("\n[USER PROFILE DETAILS]")
     if user_meta:
         lines.append(f"Name: {user_meta.get('name', 'Guest')}")
@@ -171,7 +169,6 @@ def _extract_tools_and_results(messages: list) -> dict:
     }
 
     for msg in messages:
-        # 1. Capture tools used
         if hasattr(msg, "tool_calls") and msg.tool_calls:
             for tc in msg.tool_calls:
                 extracted["tools_used"].append(tc.get("name"))
@@ -179,7 +176,6 @@ def _extract_tools_and_results(messages: list) -> dict:
         tool_name = getattr(msg, "name", "")
         content = str(getattr(msg, "content", ""))
 
-        # 2. Capture Dishes
         if tool_name in ["tool_search_menu", "tool_get_personalized_recommendations"] and content:
             current_dish = None
             for line in content.splitlines():
@@ -234,7 +230,6 @@ def _extract_tools_and_results(messages: list) -> dict:
             if current_dish:
                 extracted["dishes"].append(current_dish)
 
-        # 3. Capture Cart Data
         if tool_name in ["cart_view", "cart_add", "cart_update", "cart_remove", "cart_clear"] and content:
             try:
                 cart_data = json.loads(content)
@@ -247,7 +242,6 @@ def _extract_tools_and_results(messages: list) -> dict:
             except json.JSONDecodeError:
                 pass
 
-        # ✅ 4. Capture Past Orders (Fixed to parse clean JSON)
         if tool_name == "tool_get_past_orders" and content:
             try:
                 orders_data = json.loads(content)
@@ -256,7 +250,6 @@ def _extract_tools_and_results(messages: list) -> dict:
             except json.JSONDecodeError:
                 pass
 
-        # 5. Capture NEWLY Placed Order
         if tool_name == "place_order" and content:
             try:
                 order_data = json.loads(content)
@@ -276,8 +269,6 @@ def _extract_tools_and_results(messages: list) -> dict:
                     }
                     extracted["cart"] = []
 
-    # ✅ THE NEW UI CLUTTER FAILSAFE
-    # If the AI modified or viewed the cart, suppress the 'dishes' array so the UI ONLY renders the Cart card!
     cart_tools = ["cart_view", "cart_add", "cart_update",
                   "cart_remove", "cart_clear", "place_order"]
     if extracted["cart"] or extracted["current_order"]:
@@ -297,49 +288,50 @@ def _safe_content(content) -> str:
     return str(content).strip()
 
 
+# ==========================================
+# 3. RUN AGENT
+# ==========================================
 def run_agent(
     user_id: str,
     restaurant_id: str,
     table_public_id: str,
     message: str,
+    latitude: float = None,
+    longitude: float = None
 ) -> dict:
     session = get_session(user_id, restaurant_id)
     session["table_public_id"] = table_public_id
+    set_user_location(user_id, latitude, longitude)
+    # ⚡ FIX 2: Save the session immediately so tools can read the coordinates from the DB!
+    save_session(user_id, restaurant_id, session)
 
-    # ⚡ OPTIMIZATION: Check Memory Cache first!
-    # ✅ FIX: Checking if the keys are populated, preventing an empty {} from persisting!
     if not session.get("cached_user_meta") or not session.get("cached_rest_meta"):
-        # Fetch live metadata in PARALLEL (Takes 1/3rd of the time)
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-            future_rest = executor.submit(get_restaurant_metadata, restaurant_id)
-            future_table = executor.submit(get_table_metadata, table_public_id, restaurant_id)
+            future_rest = executor.submit(
+                get_restaurant_metadata, restaurant_id)
+            future_table = executor.submit(
+                get_table_metadata, table_public_id, restaurant_id)
             future_user = executor.submit(get_user_metadata, user_id)
 
             rest_meta = future_rest.result() or {}
             table_meta = future_table.result() or {}
             user_meta = future_user.result() or {}
-            
-        # Cache it for the next message!
+
         session["cached_rest_meta"] = rest_meta
         session["cached_user_meta"] = user_meta
     else:
-        # ⚡ Lightning fast memory lookup
         rest_meta = session["cached_rest_meta"]
         user_meta = session["cached_user_meta"]
-        # Tables might change (occupied/vacant), so we still fetch that one
         table_meta = get_table_metadata(table_public_id, restaurant_id) or {}
-
 
     rest_name = rest_meta.get("name", "our restaurant")
     rest_status = "OPEN" if rest_meta.get("is_open") else "CLOSED"
     table_num = table_meta.get("table_number", "Unknown")
     zone_name = table_meta.get("zone_name", "Main Dining Area")
 
-    # 2. Current time formatting
     now = datetime.now()
     current_time_str = now.strftime("%A, %b %d, %Y · %I:%M %p")
 
-    # 3. Rebuild chat history
     raw_messages = session.get("messages", [])
     chat_history: list = []
     for m in raw_messages:
@@ -348,11 +340,9 @@ def run_agent(
         else:
             chat_history.append(AIMessage(content=m["content"]))
 
-    # 4. Inject dynamic system prompt with real-time data
     user_name = user_meta.get("name", "Guest") if user_meta else "Guest"
     context_str = _format_context(user_id, restaurant_id, session, user_meta)
 
-    # Note: Passing user_name to dynamic_system_prompt so EXAMPLES format correctly 
     dynamic_system_prompt = SYSTEM_PROMPT.format(
         restaurant_name=rest_name,
         restaurant_status=rest_status,
@@ -360,10 +350,9 @@ def run_agent(
         zone_name=zone_name,
         current_time=current_time_str,
         context=context_str,
-        user_name=user_name 
+        user_name=user_name
     )
 
-    # 5. Build and run agent
     llm = _build_llm()
     agent_executor = create_react_agent(
         llm,
@@ -386,12 +375,10 @@ def run_agent(
             "tools_used": [],
         }
 
-    # ✅ Split the text into Top and Bottom based on the delimiter
     parts = raw_final_message.split("|||")
     top_text = parts[0].strip()
     bottom_text = parts[1].strip() if len(parts) > 1 else None
 
-    # 👇 FIXED FAILSAFE: If the AI forgot the top text (e.g. it just output "||| Checkout?"), force it!
     if not top_text:
         tools_used = extracted_data.get("tools_used", [])
         if any("cart" in t for t in tools_used):
@@ -405,33 +392,30 @@ def run_agent(
         else:
             top_text = "Here is what you asked for."
 
-    # Clean the message for the chat history
     clean_history_message = top_text
     if bottom_text:
         clean_history_message += f" {bottom_text}"
 
-    # 6. Persist session
     raw_messages.append({"role": "user",      "content": message})
     raw_messages.append(
         {"role": "assistant", "content": clean_history_message})
     session["messages"] = raw_messages[-20:]
 
-    # Update recent search context
     if extracted_data["dishes"]:
         session["last_search_results"] = extracted_data["dishes"]
 
-    # Maintain list of recent order IDs for cancellations
     if extracted_data["past_orders"]:
         existing = session.get("recent_order_ids", [])
-        existing_ids = {e.get("order_id") for e in existing if isinstance(e, dict)}
+        existing_ids = {e.get("order_id")
+                        for e in existing if isinstance(e, dict)}
         for o in extracted_data["past_orders"]:
             if isinstance(o, dict) and o.get("order_id") not in existing_ids:
                 existing.insert(0, o)
         session["recent_order_ids"] = existing[:5]
 
+    # Save session again to persist chat history and updated lists
     save_session(user_id, restaurant_id, session)
 
-    # ✅ Pass the separated text to the frontend!
     return {
         "response": top_text,
         "bottom_text": bottom_text,

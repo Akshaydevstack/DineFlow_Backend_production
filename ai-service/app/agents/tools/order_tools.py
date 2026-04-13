@@ -5,25 +5,17 @@ import uuid
 import asyncio
 import concurrent.futures
 from langchain_core.tools import tool
+from app.agents.core.memory import get_session
 
 from app.agents.tools.cart_client import (
     tool_view_cart as _view,
     tool_clear_cart as _clear,
 )
 
-
-
-# ORDERS_SERVICE_URL = os.getenv(
-#     "ORDERS_SERVICE_URL",
-#     "http://order-service.dineflow-dev:8000"
-# )
-
-
 ORDERS_SERVICE_URL = os.getenv(
     "ORDERS_SERVICE_URL",
     "http://order-service.dineflow-production.svc.cluster.local:8000"
 )
-
 
 def _run_safe(coro):
     """Safely execute async functions within LangGraph."""
@@ -34,8 +26,12 @@ def _run_safe(coro):
     except RuntimeError:
         return asyncio.run(coro)
 
+# ⚡ THE FIX: Transient memory cache for lightning-fast location handoff
+USER_LOCATION_CACHE = {}
 
-
+def set_user_location(user_id: str, lat: float, lon: float):
+    if lat is not None and lon is not None:
+        USER_LOCATION_CACHE[user_id] = {"lat": lat, "lon": lon}
 
 
 @tool
@@ -45,7 +41,15 @@ def place_order(user_id: str, restaurant_id: str, table_public_id: str) -> str:
     IMPORTANT: Always call cart_view first and show summary to user.
     Only call this after explicit confirmation ("yes", "confirm", "go ahead").
     """
-    # 1. Fetch cart
+    # ⚡ 1. Pull location instantly from RAM instead of the database!
+    loc = USER_LOCATION_CACHE.get(user_id, {})
+    user_lat = loc.get("lat")
+    user_lon = loc.get("lon")
+
+    if user_lat is None or user_lon is None:
+        return "Order failed: I could not determine your location. Please ensure location services are enabled on your device so I can verify you are at the restaurant."
+
+    # 2. Fetch cart
     cart = _run_safe(_view(user_id, restaurant_id))
 
     if isinstance(cart, dict) and "error" in cart:
@@ -61,10 +65,12 @@ def place_order(user_id: str, restaurant_id: str, table_public_id: str) -> str:
     if not items:
         return "Cart is empty — nothing to order."
 
-    # 2. Prepare request
+    # 3. Prepare request
     idempotency_key = str(uuid.uuid4())
     payload = {
         "table_public_id": table_public_id,
+        "user_latitude": user_lat,
+        "user_longitude": user_lon,
         "items": [
             {
                 "dish_id": item.get("dish_id"),
@@ -80,7 +86,7 @@ def place_order(user_id: str, restaurant_id: str, table_public_id: str) -> str:
         "X-Idempotency-Key": idempotency_key,
     }
 
-    # 3. Call Order API
+    # 4. Call Order API
     try:
         response = httpx.post(
             f"{ORDERS_SERVICE_URL}/api/order/internal/ai/create-order/",
@@ -92,24 +98,37 @@ def place_order(user_id: str, restaurant_id: str, table_public_id: str) -> str:
         order_data = response.json()
 
     except httpx.HTTPStatusError as e:
-        return f"Order failed (HTTP {e.response.status_code}): {e.response.text}"
+        # Parse DRF Validation Errors nicely for the AI
+        try:
+            err_data = e.response.json()
+            if "location" in err_data:
+                return f"Order failed: {err_data['location'][0]}"
+            
+            first_key = list(err_data.keys())[0]
+            first_err = err_data[first_key]
+            if isinstance(first_err, list):
+                return f"Order failed: {first_err[0]}"
+            return f"Order failed: {first_err}"
+        except Exception:
+            return f"Order failed (HTTP {e.response.status_code}): {e.response.text}"
     except Exception as e:
         return f"Order failed: {str(e)}"
 
-    # 4. Clear cart after success
+    # 5. Clear cart after success
     _run_safe(_clear(user_id, restaurant_id))
+    
+    # 6. Clear transient location memory to keep RAM clean
+    USER_LOCATION_CACHE.pop(user_id, None)
 
-    # 5. Format response
+    # 7. Format response
     order = order_data.get("order", order_data)
 
     return json.dumps({
-        "order_id": order.get("order_id"),
+        "order_id": order.get("order_id", order.get("public_id")),
         "status":   order.get("status"),
         "total":    order.get("total"),
         "items":    order.get("items"),
     }, indent=2)
-
-
 
 
 
