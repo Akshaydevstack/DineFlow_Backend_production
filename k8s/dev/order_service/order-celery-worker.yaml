@@ -26,8 +26,11 @@ spec:
             - -Q
             - order_queue
           env:
-            - name: CELERY_BROKER_URL
-              value: "redis://redis:6379/0"
+            - name: REDIS_HOST
+              value: "redis"
+              
+            - name: REDIS_PORT
+              value: "6379"
 
             - name: DJANGO_SETTINGS_MODULE
               value: "order_service.settings"

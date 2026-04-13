@@ -24,6 +24,12 @@ spec:
           env:
             - name: KAFKA_BOOTSTRAP_SERVERS
               value: "host.docker.internal:9092"
+            
+            - name: REDIS_HOST
+              value: "redis"
+              
+            - name: REDIS_PORT
+              value: "6379"
 
             - name: DB_NAME
               value: "order_db"

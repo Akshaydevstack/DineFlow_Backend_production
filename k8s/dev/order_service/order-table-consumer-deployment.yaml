@@ -22,6 +22,10 @@ spec:
             - manage.py
             - consume_table_events
           env:
+            - name: REDIS_HOST
+              value: "redis"
+            - name: REDIS_PORT
+              value: "6379"
             - name: K8S_ENV
               value: "true"
             - name: DB_NAME

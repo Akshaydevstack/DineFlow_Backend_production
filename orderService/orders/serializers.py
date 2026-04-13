@@ -3,7 +3,9 @@ from .models import Order, OrderItem
 from decimal import Decimal
 from .models import Order, OrderItem, TableSession
 from common.tenant import get_tenant_context
-from .models import MenuItemSnapshot, TableSnapshot
+from .models import MenuItemSnapshot, TableSnapshot, Restaurant
+from utils.calculate_distance import calculate_distance 
+
 
 
 class OrderCreateSerializer(serializers.Serializer):
@@ -14,6 +16,11 @@ class OrderCreateSerializer(serializers.Serializer):
         allow_null=True,
         max_length=500   # prevent abuse
     )
+    
+    # ⚡ FIX: Added fields to accept coordinates from frontend payload
+    user_latitude = serializers.FloatField(required=True)
+    user_longitude = serializers.FloatField(required=True)
+    
     items = serializers.ListField(
         child=serializers.DictField(),
         allow_empty=False
@@ -28,31 +35,23 @@ class OrderCreateSerializer(serializers.Serializer):
 
         for index, item in enumerate(items):
             if "dish_id" not in item:
-                raise serializers.ValidationError(
-                    f"Item {index}: dish_id is required"
-                )
+                raise serializers.ValidationError(f"Item {index}: dish_id is required")
 
             if "quantity" not in item:
-                raise serializers.ValidationError(
-                    f"Item {index}: quantity is required"
-                )
+                raise serializers.ValidationError(f"Item {index}: quantity is required")
 
             try:
                 quantity = int(item["quantity"])
             except (TypeError, ValueError):
-                raise serializers.ValidationError(
-                    f"Item {index}: quantity must be an integer"
-                )
+                raise serializers.ValidationError(f"Item {index}: quantity must be an integer")
 
             if quantity <= 0:
-                raise serializers.ValidationError(
-                    f"Item {index}: quantity must be greater than 0"
-                )
+                raise serializers.ValidationError(f"Item {index}: quantity must be greater than 0")
 
         return items
 
     # ---------------------------------
-    # Full Business Validation
+    # Full Business & Location Validation
     # ---------------------------------
     def validate(self, attrs):
         request = self.context["request"]
@@ -60,6 +59,31 @@ class OrderCreateSerializer(serializers.Serializer):
 
         table_public_id = attrs["table_public_id"]
         items = attrs["items"]
+        user_lat = attrs["user_latitude"]
+        user_lon = attrs["user_longitude"]
+
+        # ---------------------------------
+        # 📍 Geofencing Validation (20 Meters)
+        # ---------------------------------
+        try:
+            restaurant = Restaurant.objects.get(public_id=restaurant_id)
+            
+            # Only enforce if the restaurant admin has actually set their coordinates
+            if restaurant.latitude and restaurant.longitude:
+                distance = calculate_distance(
+                    user_lat, user_lon, 
+                    restaurant.latitude, restaurant.longitude
+                )
+                
+                # ⚡ Check if distance exceeds 20 meters
+                if distance > 20:
+                    raise serializers.ValidationError(
+                        {"location": f"You are too far from the restaurant to place an order. Please move closer. (Distance: {int(distance)}m)"}
+                    )
+        except Restaurant.DoesNotExist:
+            raise serializers.ValidationError(
+                {"restaurant": "Restaurant details not found for location validation."}
+            )
 
         # ---------------------------------
         # Validate Table Snapshot
@@ -84,9 +108,7 @@ class OrderCreateSerializer(serializers.Serializer):
             status=TableSession.STATUS_ACTIVE,
         ).first()
 
-        # If session exists → check ownership rules
         if active_session:
-            # If session has orders from another user → block
             other_user_active_order_exists = active_session.orders.filter(
                 status__in=[
                     Order.STATUS_CREATED,
@@ -129,6 +151,7 @@ class OrderCreateSerializer(serializers.Serializer):
         attrs["active_session"] = active_session
 
         return attrs
+
 
 
 

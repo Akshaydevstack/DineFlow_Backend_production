@@ -35,3 +35,8 @@ spec:
               value: "order-db"
             - name: DB_PORT
               value: "5432"
+
+            - name: REDIS_HOST
+              value: "redis"
+            - name: REDIS_PORT
+              value: "6379"

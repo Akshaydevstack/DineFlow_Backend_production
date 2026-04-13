@@ -118,7 +118,7 @@ class AIUserOrdersView(APIView):
 
 
 # Customer order view
-class OrderCreateView (APIView):
+class OrderCreateView(APIView):
 
     def post(self, request):
         restaurant_id, user_id = get_tenant_context(request)
@@ -141,6 +141,7 @@ class OrderCreateView (APIView):
                 status=status.HTTP_200_OK,
             )
 
+        # ⚡ Serializer will automatically run our new Geofencing check
         serializer = OrderCreateSerializer(
             data=request.data,
             context={"request": request}
@@ -155,7 +156,6 @@ class OrderCreateView (APIView):
         # --------------------------------------------------
         # ATOMIC SECTION
         # --------------------------------------------------
-
         with transaction.atomic():
 
             session = (
@@ -181,8 +181,11 @@ class OrderCreateView (APIView):
                 ).exclude(user_id=user_id).exists()
 
                 if other_user_active_order_exists:
-                    raise serializers.ValidationError(
-                        {"table_public_id": "This table is currently occupied"}
+                    # Note: You technically already catch this in the serializer, 
+                    # but catching it here during the select_for_update lock is perfect for race conditions.
+                    return Response(
+                        {"table_public_id": ["This table is currently occupied"]},
+                        status=status.HTTP_400_BAD_REQUEST
                     )
             else:
                 session = TableSession.objects.create(
@@ -238,7 +241,6 @@ class OrderCreateView (APIView):
 
             order.recalculate_totals()
 
-            # ⚡ FIX 2: Run order placed event in a background thread
             transaction.on_commit(
                 lambda: threading.Thread(
                     target=publish_order_placed, 
@@ -256,7 +258,6 @@ class OrderCreateView (APIView):
             build_order_response(order),
             status=status.HTTP_201_CREATED,
         )
-
 
 
 # List all the orders for the user
