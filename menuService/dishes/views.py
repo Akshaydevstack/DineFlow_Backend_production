@@ -88,7 +88,6 @@ class DishesListView(ListAPIView):
         "total_orders",
     ]
 
-    ordering = ["-priority", "-created_at"]
 
     def get_queryset(self):
         return (
@@ -96,6 +95,7 @@ class DishesListView(ListAPIView):
             .filter(is_available=True)
             .select_related("category")
             .prefetch_related("images")
+            .order_by('-priority', 'public_id')
         )
 
     def list(self, request, *args, **kwargs):
@@ -166,8 +166,6 @@ class WaiterDishesListView(ListAPIView):
         "created_at",
         "total_orders",
     ]
-
-    ordering_fields = ['priority', 'created_at', 'public_id']
 
     def get_queryset(self):
         return (
