@@ -197,10 +197,7 @@ class OrderCreateView(APIView):
                 )
 
                 transaction.on_commit(
-                    lambda: threading.Thread(
-                        target=publish_session_started,
-                        args=(session, user_id)
-                    ).start()
+                    lambda: publish_session_started(session, user_id)
                 )
 
             # --------------------------------------------------
@@ -242,10 +239,7 @@ class OrderCreateView(APIView):
             order.recalculate_totals()
 
             transaction.on_commit(
-                lambda: threading.Thread(
-                    target=publish_order_placed, 
-                    args=(order,)
-                ).start()
+                lambda: publish_order_placed(order)
             )
 
             store_idempotency_key(
