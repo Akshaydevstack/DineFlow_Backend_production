@@ -6,7 +6,7 @@ from rest_framework.viewsets import ModelViewSet
 
 
 #-------------------------------
-# Coustamer only view for catogery
+# Customer only view for category
 #-------------------------------
 @extend_schema(tags=["Category"])
 class CategoryListView(ListAPIView):
@@ -15,15 +15,13 @@ class CategoryListView(ListAPIView):
     serializer_class = CategoryListSerializer
     
     def get_queryset(self):
-        return (
-            Category.objects.all()
-        )
+        # ⚡ FIX: Added .order_by('id')
+        return Category.objects.all().order_by('public_id')
 
 
 #-------------------------------
-# Coustamer only view for catogery
+# Waiter only view for category
 #-------------------------------
-
 @extend_schema(tags=["Category"])
 class WaiterCategoryListView(ListAPIView):
     authentication_classes = []
@@ -31,19 +29,19 @@ class WaiterCategoryListView(ListAPIView):
     serializer_class = CategoryListSerializer
     
     def get_queryset(self):
-        return (
-            Category.objects.all()
-        )
+        # ⚡ FIX: Added .order_by('id')
+        return Category.objects.all().order_by('public_id')
+
 
 #-------------------------------
-# admin only view for catogery
+# Admin only view for category
 #-------------------------------
-
 @extend_schema(tags=["AdminCategory Management"])
 class AdminCategoryViewSet(ModelViewSet):
     authentication_classes = [] 
     permission_classes = []
-    queryset = Category.objects.all()
+    # ⚡ FIX: Added .order_by('id') to the class-level queryset
+    queryset = Category.objects.all().order_by('public_id')
     lookup_field = "public_id"
 
 
@@ -51,5 +49,3 @@ class AdminCategoryViewSet(ModelViewSet):
         if self.action in ("create", "update", "partial_update"):
             return CategoryWriteSerializer
         return CategoryListSerializer
-
-    

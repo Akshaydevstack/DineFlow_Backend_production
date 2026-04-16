@@ -16,7 +16,6 @@ from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
 from dish_reviews.models import DishReview
 from .models import Dish
 
@@ -30,6 +29,7 @@ def get_dish_cache_version(restaurant_id):
         timeout=None
     )
 
+
 def bump_dish_cache_version(restaurant_id):
     key = f"dishes:version:{restaurant_id}"
 
@@ -38,13 +38,13 @@ def bump_dish_cache_version(restaurant_id):
     except ValueError:
         cache.set(key, 1, timeout=None)
 
+
 class HealthCheckView(APIView):
     authentication_classes = []
     permission_classes = []
 
     def get(self, request):
         return Response({"status": "ok"})
-
 
 
 # ------------------------
@@ -114,8 +114,6 @@ class DishesListView(ListAPIView):
         return response
 
 
-
-
 @extend_schema(tags=["Dishes"])
 class DishDetailView(APIView):
     authentication_classes = []
@@ -131,7 +129,6 @@ class DishDetailView(APIView):
 
         serializer = DishReadSerializer(dish)
         return Response(serializer.data, status=status.HTTP_200_OK)
-
 
 
 # ------------------------
@@ -170,13 +167,14 @@ class WaiterDishesListView(ListAPIView):
         "total_orders",
     ]
 
-    ordering = ["-priority", "-created_at"]
+    ordering_fields = ['priority', 'created_at', 'public_id']
 
     def get_queryset(self):
         return (
             Dish.objects
             .select_related("category")
             .prefetch_related("images")
+            .order_by('-priority', 'public_id')
         )
 
     def list(self, request, *args, **kwargs):
@@ -195,7 +193,6 @@ class WaiterDishesListView(ListAPIView):
         return response
 
 
-
 @extend_schema(tags=["Dishes"])
 class WaiterDishDetailView(APIView):
     authentication_classes = []
@@ -211,9 +208,6 @@ class WaiterDishDetailView(APIView):
 
         serializer = DishReadSerializer(dish)
         return Response(serializer.data, status=status.HTTP_200_OK)
-
-
-
 
 
 # ------------------------
@@ -235,6 +229,7 @@ class AdminDishViewSet(ModelViewSet):
             Dish.objects
             .select_related("category")
             .prefetch_related("images")
+            .order_by('-priority', 'public_id')
         )
 
     # --------------------------------
@@ -327,7 +322,6 @@ class AdminDishViewSet(ModelViewSet):
         restaurant_id = instance.restaurant_id
         instance.delete()
         bump_dish_cache_version(restaurant_id)
-        
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -341,11 +335,11 @@ class AdminDishViewSet(ModelViewSet):
 
         return Response(read_serializer.data, status=status.HTTP_201_CREATED)
 
-
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop("partial", False)
         instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer = self.get_serializer(
+            instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
 
@@ -357,14 +351,13 @@ class AdminDishViewSet(ModelViewSet):
         return Response(read_serializer.data)
 
 
-
 class AdminCategoryDishStatsView(APIView):
 
     permission_classes = []
     authentication_classes = []
 
     def get(self, request):
-    
+
         qs = (
             Dish.objects
             .values(
@@ -387,7 +380,7 @@ class AdminCategoryDishStatsView(APIView):
         ]
 
         return Response(data, status=status.HTTP_200_OK)
-    
+
 
 # Dish status for dashboard
 
@@ -396,9 +389,8 @@ class AdminDishStatsView(APIView):
     permission_classes = []
     authentication_classes = []
 
-
     def get(self, request):
-    
+
         # -----------------------------------
         # DISH BASE QUERYSET
         # -----------------------------------
@@ -439,9 +431,9 @@ class AdminDishStatsView(APIView):
         })
 
 
-#======================
+# ======================
 # internal API for AI
-#======================
+# ======================
 
 
 @extend_schema(tags=["AI Dishes"])
