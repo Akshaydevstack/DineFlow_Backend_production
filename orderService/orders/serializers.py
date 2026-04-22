@@ -17,9 +17,9 @@ class OrderCreateSerializer(serializers.Serializer):
         max_length=500   # prevent abuse
     )
     
-    # ⚡ FIX: Added fields to accept coordinates from frontend payload
-    user_latitude = serializers.FloatField(required=True)
-    user_longitude = serializers.FloatField(required=True)
+    # ⚡ Made required=False to allow waiters to bypass location checks
+    user_latitude = serializers.FloatField(required=False, allow_null=True)
+    user_longitude = serializers.FloatField(required=False, allow_null=True)
     
     items = serializers.ListField(
         child=serializers.DictField(),
@@ -56,34 +56,45 @@ class OrderCreateSerializer(serializers.Serializer):
     def validate(self, attrs):
         request = self.context["request"]
         restaurant_id, user_id = get_tenant_context(request)
+        
+        # Check user role from headers
+        user_role = request.headers.get("X-User-Role", "").lower()
+        is_waiter = (user_role == "waiter")
 
-        table_public_id = attrs["table_public_id"]
-        items = attrs["items"]
-        user_lat = attrs["user_latitude"]
-        user_lon = attrs["user_longitude"]
+        table_public_id = attrs.get("table_public_id")
+        items = attrs.get("items")
+        user_lat = attrs.get("user_latitude")
+        user_lon = attrs.get("user_longitude")
 
         # ---------------------------------
-        # 📍 Geofencing Validation (20 Meters)
+        # 📍 Geofencing Validation (50 Meters) - Bypassed for Waiters
         # ---------------------------------
-        try:
-            restaurant = Restaurant.objects.get(public_id=restaurant_id)
-            
-            # Only enforce if the restaurant admin has actually set their coordinates
-            if restaurant.latitude and restaurant.longitude:
-                distance = calculate_distance(
-                    user_lat, user_lon, 
-                    restaurant.latitude, restaurant.longitude
+        if not is_waiter:
+            # Customers MUST provide coordinates
+            if user_lat is None or user_lon is None:
+                raise serializers.ValidationError(
+                    {"location": "Location coordinates are required to place an order."}
                 )
+
+            try:
+                restaurant = Restaurant.objects.get(public_id=restaurant_id)
                 
-                # ⚡ Check if distance exceeds 20 meters
-                if distance > 50:
-                    raise serializers.ValidationError(
-                        {"location": f"You are too far from the restaurant to place an order. Please move closer. (Distance: {int(distance)}m)"}
+                # Only enforce if the restaurant admin has actually set their coordinates
+                if restaurant.latitude and restaurant.longitude:
+                    distance = calculate_distance(
+                        user_lat, user_lon, 
+                        restaurant.latitude, restaurant.longitude
                     )
-        except Restaurant.DoesNotExist:
-            raise serializers.ValidationError(
-                {"restaurant": "Restaurant details not found for location validation."}
-            )
+                    
+                    # Check if distance exceeds 50 meters
+                    if distance > 50:
+                        raise serializers.ValidationError(
+                            {"location": f"You are too far from the restaurant to place an order. Please move closer. (Distance: {int(distance)}m)"}
+                        )
+            except Restaurant.DoesNotExist:
+                raise serializers.ValidationError(
+                    {"restaurant": "Restaurant details not found for location validation."}
+                )
 
         # ---------------------------------
         # Validate Table Snapshot

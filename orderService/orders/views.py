@@ -181,8 +181,6 @@ class OrderCreateView(APIView):
                 ).exclude(user_id=user_id).exists()
 
                 if other_user_active_order_exists:
-                    # Note: You technically already catch this in the serializer, 
-                    # but catching it here during the select_for_update lock is perfect for race conditions.
                     return Response(
                         {"table_public_id": ["This table is currently occupied"]},
                         status=status.HTTP_400_BAD_REQUEST
