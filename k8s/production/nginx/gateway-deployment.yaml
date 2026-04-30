@@ -37,7 +37,7 @@ spec:
             # 2. Mount the Nginx ConfigMap as a single file
             - name: nginx-config-volume
               mountPath: /etc/nginx/custom_nginx.conf
-              subPath: nginx.conf
+              subPath: custom_nginx.conf
               readOnly: true
               
       volumes:
