@@ -32,7 +32,7 @@ spec:
 
       containers:
         - name: consumer
-          image: 660119432940.dkr.ecr.ap-south-1.amazonaws.com/dineflow-ai:latest
+          image: 860510875189.dkr.ecr.ap-south-1.amazonaws.com/dineflow-ai:latest
           imagePullPolicy: Always 
           command:
             - python
@@ -131,7 +131,7 @@ spec:
         
       containers:
         - name: ai-service
-          image: 660119432940.dkr.ecr.ap-south-1.amazonaws.com/dineflow-ai:latest
+          image: 860510875189.dkr.ecr.ap-south-1.amazonaws.com/dineflow-ai:latest
           imagePullPolicy: Always 
           ports:
             - containerPort: 8001
