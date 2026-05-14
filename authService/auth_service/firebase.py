@@ -4,7 +4,7 @@ from firebase_admin import credentials, auth
 from loguru import logger
 
 # Get the path from the environment variable we will set in the deployment
-cred_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+cred_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS") 
 
 # Initialize Firebase only once
 if not firebase_admin._apps:
