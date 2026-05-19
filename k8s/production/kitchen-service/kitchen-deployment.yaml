@@ -55,7 +55,7 @@ spec:
       containers:
         - name: kitchen-service
           # 🚀 Upgraded: Points to your secure AWS ECR repository
-          image: 860510875189.dkr.ecr.ap-south-1.amazonaws.com/dineflow-kitchen:latest
+          image: 831411500771.dkr.ecr.ap-south-1.amazonaws.com/dineflow-kitchen:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
@@ -173,7 +173,7 @@ spec:
       containers:
         - name: consumer
           # 🚀 Upgraded: Points to the ECR Image
-          image: 860510875189.dkr.ecr.ap-south-1.amazonaws.com/dineflow-kitchen:latest
+          image: 831411500771.dkr.ecr.ap-south-1.amazonaws.com/dineflow-kitchen:latest
           imagePullPolicy: Always
           command:
             - python

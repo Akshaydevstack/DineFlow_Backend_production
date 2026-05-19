@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: gateway
-          image: 860510875189.dkr.ecr.ap-south-1.amazonaws.com/dineflow-gateway:latest
+          image: 831411500771.dkr.ecr.ap-south-1.amazonaws.com/dineflow-gateway:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 80
@@ -59,7 +59,7 @@ metadata:
     service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
     
     # 🚀 Attaches your AWS SSL Certificate
-    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "arn:aws:acm:ap-south-1:860510875189:certificate/67b039c1-4778-4a24-8a1e-4ea0696669bc"
+    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "arn:aws:acm:ap-south-1:831411500771:certificate/f80209b8-16a0-40d3-8ac0-dee90fbc9ead"
     
     # 🚀 Opens HTTPS Port 443 on the AWS Load Balancer
     service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "443"
