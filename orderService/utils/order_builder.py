@@ -3,6 +3,7 @@ def build_order_response(order):
     return {
         "order": {
             "order_id": order.public_id,
+            "user_id": order.user_id,
             "status": order.status,
             "payment_status": order.payment_status,
             "paid_at":order.paid_at,
