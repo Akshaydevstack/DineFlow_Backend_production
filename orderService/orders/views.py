@@ -13,7 +13,6 @@ from orders.redis.idempotency import (
     get_existing_order,
     store_idempotency_key,
 )
-from rest_framework import serializers
 from orders.kafka.producer import publish_order_placed, publish_order_cancelled, publish_session_started
 from utils.order_builder import build_order_response
 from rest_framework.views import APIView
@@ -30,7 +29,7 @@ from datetime import datetime, timedelta
 from django.utils.dateparse import parse_datetime
 from orders.kafka.producer import publish_session_closed
 from .models import MenuItemSnapshot
-import threading
+
 
 
 
