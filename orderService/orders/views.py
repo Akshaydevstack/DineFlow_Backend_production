@@ -7,7 +7,6 @@ from django.db import transaction
 from decimal import Decimal
 from .models import Order, OrderItem, TableSession
 from orders.models import Order, OrderItem
-from orders.kafka.producer import publish_order_placed
 from common.tenant import get_tenant_context
 from orders.redis.idempotency import (
     get_existing_order,
@@ -652,7 +651,9 @@ class AdminOrderStatusUpdateView(APIView):
             )
 
         try:
-            order.update_status(new_status)
+            # Added transaction block to safely execute on_commit hooks
+            with transaction.atomic():
+                order.update_status(new_status)
         except Exception as e:
             return Response(
                 {"detail": str(e)},
