@@ -234,10 +234,6 @@ class OrderCreateView(APIView):
 
             order.recalculate_totals()
 
-            transaction.on_commit(
-                lambda: publish_order_placed(order)
-            )
-
             store_idempotency_key(
                 user_id=user_id,
                 key=idempotency_key,
