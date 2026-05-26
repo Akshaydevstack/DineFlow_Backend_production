@@ -13,8 +13,7 @@ from loguru import logger
 try:
     # ⚡ FIXED: Calling pool directly!
     db_pool = pool.ThreadedConnectionPool(
-        minconn=1,
-        maxconn=20, # Handles up to 20 concurrent AI requests instantly
+        # Handles up to 20 concurrent AI requests instantly
         host=os.getenv("POSTGRES_HOST", "localhost"),
         port=os.getenv("POSTGRES_PORT", "6543"), 
         dbname=os.getenv("POSTGRES_DB", "ai_db"),        

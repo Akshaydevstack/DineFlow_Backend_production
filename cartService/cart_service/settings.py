@@ -76,7 +76,6 @@ WSGI_APPLICATION = 'cart_service.wsgi.application'
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 
-
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -84,14 +83,11 @@ DATABASES = {
         "USER": os.environ.get("DB_USER"),
         "PASSWORD": os.environ.get("DB_PASSWORD"),
         "HOST": os.environ.get("DB_HOST"),
-        "PORT": os.environ.get("DB_PORT", "5432"),
-        
-        # 🚀 PRODUCTION UPGRADES BELOW:
-        
-        
-        # Force strict SSL/TLS encryption over the public internet
+        "PORT": os.environ.get("DB_PORT", "6543"),
+        "CONN_MAX_AGE": 0,  # ← Must be 0 for Transaction Pooler
         "OPTIONS": {
-            "sslmode": "require", 
+            "sslmode": "require",
+            "options": "-c search_path=public",  # ← explicit schema
         },
     }
 }
