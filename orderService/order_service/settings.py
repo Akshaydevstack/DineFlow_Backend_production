@@ -95,7 +95,6 @@ DATABASES = {
         # Ensures broken connections are dropped before being reused (Django 4.2+)
         "CONN_HEALTH_CHECKS": True, 
         
-        # Force strict SSL/TLS encryption over the public internet
         "OPTIONS": {
             "sslmode": "require", 
         },

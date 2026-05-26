@@ -16,7 +16,7 @@ try:
         minconn=1,
         maxconn=20, # Handles up to 20 concurrent AI requests instantly
         host=os.getenv("POSTGRES_HOST", "localhost"),
-        port=os.getenv("POSTGRES_PORT", "6543"), # Updated fallback to pooler port
+        port=os.getenv("POSTGRES_PORT", "6543"), 
         dbname=os.getenv("POSTGRES_DB", "ai_db"),        
         user=os.getenv("POSTGRES_USER", "postgres"),
         password=os.getenv("POSTGRES_PASSWORD", "postgres"),

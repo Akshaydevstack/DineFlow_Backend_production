@@ -102,7 +102,6 @@ DATABASES = {
         # Keep connections open for 60 seconds to reuse them across requests
         "CONN_MAX_AGE": int(os.environ.get("CONN_MAX_AGE", 60)), 
         
-        # Ensures broken connections are dropped before being reused (Django 4.2+)
         "CONN_HEALTH_CHECKS": True, 
         
         # Force strict SSL/TLS encryption over the public internet
