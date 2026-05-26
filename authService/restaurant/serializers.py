@@ -424,8 +424,6 @@ class RestaurantAdminTableSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "restaurant_id",
-            "is_occupied",
-            "occupied_by_user_id",
         ]
 
     def validate_zone(self, zone):

@@ -246,7 +246,6 @@ def ingest_tables(tables: list):
             "table_type": table.get("table_type"),
             "is_active": table.get("is_active", True),
             "is_occupied": table["is_occupied"],
-            "is_reserved_manual" : table.get("is_reserved_manual"),
             "current_user_id": table.get("current_user_id") # None if empty
         }
 
