@@ -30,6 +30,8 @@ def publish_table_upsert_event(*, table):
         "zone_name": table.zone.name if table.zone else None,
         "is_active": table.is_active,
         "table_type": table.table_type,
+        "is_occupied": table.is_occupied,
+        "is_reserved_manual": table.is_reserved_manual,
         "occurred_at": table.updated_at.isoformat(),
         "version": table.table_version,
     }
