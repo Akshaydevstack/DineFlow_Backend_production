@@ -23,11 +23,27 @@ def tool_check_table_availability(restaurant_id: str, zone_name: str = "") -> st
     tables = check_table_availability_db(restaurant_id, zone_name if zone_name else None)
     
     if not tables:
-        return f"No tables found for that criteria."
+        return "No tables found for that criteria."
 
-    # Return a formatted list of all tables and their current status
     response = "Here is the current table status:\n"
+    
     for t in tables:
-        response += f"- {t}\n"
-        
+        # Assuming check_table_availability_db returns a list of metadata dictionaries
+        if isinstance(t, dict):
+            is_occupied = t.get("is_occupied", False)
+            is_reserved = t.get("is_reserved_manual", False)
+            
+            # Determine the exact string status to feed the LLM
+            if is_occupied:
+                status = "Occupied"
+            elif is_reserved:
+                status = "Not available (Reserved for a person)"
+            else:
+                status = "Available"
+                
+            response += f"- Table {t.get('table_number')} ({t.get('zone_name', 'Dining')}): {status}\n"
+        else:
+            # Fallback just in case your DB function returns pre-formatted strings
+            response += f"- {t}\n"
+            
     return response
