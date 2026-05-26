@@ -59,3 +59,4 @@ dineflow-infrastructure/
 # scripts (Recommended)
 **/setup-cluster.sh
 **/push_to_aws.sh
+**/setup-dev-cluster.sh

@@ -1,3 +1,6 @@
+# ==========================================
+# 1. Auth Service API Deployment (Dev)
+# ==========================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -18,29 +21,19 @@ spec:
       labels:
         app: auth-service
     spec:
-      initContainers:
-        - name: init-auth-db
-          image: postgres:15
-          imagePullPolicy: IfNotPresent
-          env:
-            - name: PGPASSWORD
-              value: postgres
-          command:
-            - sh
-            - -c
-            - |
-              echo "Waiting for Postgres..."
-              until pg_isready -h auth-db -U postgres; do
-              sleep 2
-              done
+      # Note: initContainers for pg_isready removed. 
+      # We are using Supabase now, so the DB is always available externally.
+      
       containers:
         - name: auth-service
           image: dineflow_backend-auth_service:latest
-          imagePullPolicy: Never
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
           env:
-          
+            - name: K8S_ENV
+              value: "true"
+
             # ✉️ --- SMTP Credentials from Secret ---
             - name: SMTP_USERNAME
               valueFrom:
@@ -54,28 +47,48 @@ spec:
                   name: smtp-credentials
                   key: SMTP_PASSWORD
 
-            # 🔴 --- AWS ElastiCache Redis Configuration ---
+            # 🔴 --- Redis Configuration ---
             - name: REDIS_HOST
-              value: "redis"
-              
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_HOST
             - name: REDIS_PORT
-              value: "6379"
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_PORT
 
-            # 🛠️ --- Database & Kafka ---
+            # 🛠️ --- Kafka Configuration ---
             - name: KAFKA_BOOTSTRAP_SERVERS
-              value: "host.docker.internal:9092"
-            - name: K8S_ENV
-              value: "true"
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+
+            # 🗄️ --- Database Configuration (Supabase) ---
             - name: DB_NAME
               value: "auth_db"
             - name: DB_USER
-              value: "postgres"
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_USER
             - name: DB_PASSWORD
-              value: "postgres"
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
             - name: DB_HOST
-              value: "auth-db"
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
             - name: DB_PORT
-              value: "5432"
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PORT
 
             # 🌐 --- Internal Service Discovery ---
             - name: ORDER_SERVICE_TENANT_PROVISION_URL
@@ -89,15 +102,17 @@ spec:
             - name: NOTIFICATION_SERVICE_TENANT_PROVISION_URL
               value: "http://notification-service.dineflow-dev.svc.cluster.local:8000/internal/tenants/provision"
 
+            # 🔥 --- Firebase ---
             - name: GOOGLE_APPLICATION_CREDENTIALS
               value: "/etc/secrets/firebase/firebase-credentials.json"
 
           volumeMounts:
-            - name: jwt-private-key
+            # Fixed to use the single 'jwt-keys' secret created by our script
+            - name: jwt-keys-volume
               mountPath: /app/jwt_keys/private.pem
               subPath: private.pem
               readOnly: true
-            - name: jwt-public-key
+            - name: jwt-keys-volume
               mountPath: /app/jwt_keys/public.pem
               subPath: public.pem
               readOnly: true
@@ -119,12 +134,105 @@ spec:
             periodSeconds: 10
 
       volumes:
-        - name: jwt-private-key
+        # Changed from two separate secrets to the single combined secret
+        - name: jwt-keys-volume
           secret:
-            secretName: jwt-private-key
-        - name: jwt-public-key
-          secret:
-            secretName: jwt-public-key
+            secretName: jwt-keys
         - name: firebase-secret-volume
           secret:
             secretName: firebase-auth-secret
+
+---
+# ==========================================
+# 2. Auth Table Session Consumer (Dev)
+# ==========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-table-session-consumer
+  namespace: dineflow-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: auth-table-session-consumer
+  template:
+    metadata:
+      labels:
+        app: auth-table-session-consumer
+    spec:
+      containers:
+        - name: consumer
+          image: dineflow_backend-auth_service:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - python
+            - manage.py
+            - consume_table_session_events
+          env:
+            - name: K8S_ENV
+              value: "true"
+              
+            # 🗄️ --- Database Configuration (Supabase) ---
+            - name: DB_NAME
+              value: "auth_db"
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PORT
+
+            # 🛠️ --- Kafka Configuration ---
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+
+            # 🔥 --- Firebase ---
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: "/etc/secrets/firebase/firebase-credentials.json"
+          
+          volumeMounts:
+            - name: firebase-secret-volume
+              mountPath: /etc/secrets/firebase
+              readOnly: true
+              
+      volumes:
+        - name: firebase-secret-volume
+          secret:
+            secretName: firebase-auth-secret
+
+
+---
+# ==========================================
+# Auth Service Network ClusterIP (Dev)
+# ==========================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  namespace: dineflow-dev
+spec:
+  selector:
+    app: auth-service
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+  type: ClusterIP

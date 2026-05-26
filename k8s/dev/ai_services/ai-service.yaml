@@ -1,92 +1,209 @@
+# ==========================================
+# 1. AI Kafka Consumer Deployment (Dev)
+# ==========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-kafka-consumer
+  namespace: dineflow-dev
+spec:
+  replicas: 1
+  # 🚀 Matches Prod: Tell Kubernetes to kill the old pod BEFORE starting the new one.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ai-kafka-consumer
+  template:
+    metadata:
+      labels:
+        app: ai-kafka-consumer
+    spec:
+      terminationGracePeriodSeconds: 30
+      
+      # Note: nodeSelector and tolerations removed so it can run on local Docker Desktop
+
+      containers:
+        - name: consumer
+          image: dineflow-ai-service:latest
+          imagePullPolicy: IfNotPresent 
+          command:
+            - python
+            - -c
+            - "from app.kafka.menu_consumer import consume_events; consume_events()"
+
+          env:
+            # --- Kafka ---
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+
+            # --- Internal Microservice URLs (Dev Namespace) ---
+            - name: CART_SERVICE_URL
+              value: "http://cart-service.dineflow-dev.svc.cluster.local:8000"
+            - name: ORDERS_SERVICE_URL
+              value: "http://order-service.dineflow-dev.svc.cluster.local:8000"
+            - name: MENU_SERVICE_URL
+              value: "http://menu-service.dineflow-dev.svc.cluster.local:8000"
+
+            # --- Postgres ---
+            - name: POSTGRES_DB
+              value: "ai_db" 
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+            - name: POSTGRES_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: POSTGRES_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_PORT
+
+            # --- Redis ---
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_PORT
+
+            # --- API Keys ---
+            - name: GROQ_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: groq-credentials
+                  key: GROQ_API_KEY
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+---
+# ==========================================
+# 2. AI Service API Deployment (Dev)
+# ==========================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ai-service
-  namespace: dineflow-dev
+  namespace: dineflow-dev 
 spec:
   replicas: 1
-
+  # 🚀 Matches Prod: Changed to Recreate to prevent memory deadlock
   strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 0
-      maxUnavailable: 1
-
+    type: Recreate
   selector:
     matchLabels:
       app: ai-service
-
   template:
     metadata:
       labels:
         app: ai-service
-
     spec:
+      
+      # Note: nodeSelector and tolerations removed for local Docker Desktop
+
       containers:
         - name: ai-service
           image: dineflow-ai-service:latest
-          imagePullPolicy: Never
+          imagePullPolicy: IfNotPresent 
           ports:
             - containerPort: 8001
 
-          # ✅ CRITICAL FIX: Ensure the ML models have enough RAM so Linux doesn't OOM kill it
           resources:
             requests:
               memory: "1Gi"
               cpu: "500m"
             limits:
-              memory: "2.5Gi"
+              memory: "1.5Gi"
               cpu: "2000m"
 
           env:
             - name: K8S_ENV
               value: "true"
 
-            # --- Internal Microservice URLs (Dev Namespace) ---
+            # 🌐 --- Internal Microservice URLs (Dev Namespace) ---
             - name: CART_SERVICE_URL
               value: "http://cart-service.dineflow-dev.svc.cluster.local:8000"
-
             - name: ORDERS_SERVICE_URL
               value: "http://order-service.dineflow-dev.svc.cluster.local:8000"
-              
             - name: MENU_SERVICE_URL
               value: "http://menu-service.dineflow-dev.svc.cluster.local:8000"
 
             # --- Redis ---
             - name: REDIS_HOST
-              value: "redis"
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_HOST
             - name: REDIS_PORT
-              value: "6379"
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_PORT
 
-            # --- Postgres (pgvector) ---
-            - name: POSTGRES_HOST
-              value: "ai-db"                  
-            - name: POSTGRES_PORT
-              value: "5432"
+            # --- Postgres ---
             - name: POSTGRES_DB
               value: "ai_db"
             - name: POSTGRES_USER
-              value: "postgres"
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_USER
             - name: POSTGRES_PASSWORD
-              value: "postgres"
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+            - name: POSTGRES_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: POSTGRES_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: POSTGRES_PORT
 
             # --- Kafka ---
             - name: KAFKA_BOOTSTRAP_SERVERS
-              value: "host.docker.internal:9092"
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
 
             # --- Email / SMTP ---
             - name: SMTP_SERVER
               value: "smtp.gmail.com"
-
             - name: SMTP_PORT
               value: "587"
-
             - name: SMTP_USERNAME
               valueFrom:
                 secretKeyRef:
                   name: smtp-credentials
                   key: SMTP_USER
-
             - name: SMTP_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -99,13 +216,11 @@ spec:
                 secretKeyRef:
                   name: gemini-credentials
                   key: GEMINI_API_KEY
-
             - name: GROQ_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: groq-credentials
                   key: GROQ_API_KEY
-
             - name: HF_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -118,20 +233,17 @@ spec:
                 secretKeyRef:
                   name: aws-credentials
                   key: AWS_ACCESS_KEY_ID
-
             - name: AWS_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
                   name: aws-credentials
                   key: AWS_SECRET_ACCESS_KEY
-
             - name: AWS_DEFAULT_REGION
               valueFrom:
-                secretKeyRef:
+                secretKeyRef:         
                   name: aws-credentials
                   key: AWS_DEFAULT_REGION
 
-          # ✅ CRITICAL FIX: Make Kubernetes more patient during heavy AI workloads
           readinessProbe:
             httpGet:
               path: /health/
@@ -151,6 +263,9 @@ spec:
             failureThreshold: 5
 
 ---
+# ==========================================
+# 3. AI Service Network ClusterIP (Dev)
+# ==========================================
 apiVersion: v1
 kind: Service
 metadata:

@@ -1,3 +1,6 @@
+# ==========================================
+# 1. Menu Service API Deployment (Dev)
+# ==========================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -5,62 +8,66 @@ metadata:
   namespace: dineflow-dev
 spec:
   replicas: 1
-
   strategy:
     type: RollingUpdate
     rollingUpdate:
       maxSurge: 0
       maxUnavailable: 1
-
   selector:
     matchLabels:
       app: menu-service
-
   template:
     metadata:
       labels:
         app: menu-service
-
     spec:
-      initContainers:
-        - name: init-menu-db
-          image: postgres:15
-          imagePullPolicy: IfNotPresent
-          env:
-            - name: PGPASSWORD
-              value: postgres
-          command:
-            - sh
-            - -c
-            - |
-              echo "Waiting for Postgres..."
-              until pg_isready -h menu-db -U postgres; do
-              sleep 2
-              done
-
+      # Note: initContainers for pg_isready removed. 
+      # Supabase DB is externally managed.
       containers:
         - name: menu-service
           image: dineflow_backend-menu_service:latest
-          imagePullPolicy: Never
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
           env:
             - name: K8S_ENV
               value: "true"
+
+            # 🗄️ --- Database Configuration (Supabase) ---
             - name: DB_NAME
-              value: "menu_db"
+              value: "menu_db"   # <--- Hardcoded strictly to menu_db
             - name: DB_USER
-              value: "postgres"
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_USER
             - name: DB_PASSWORD
-              value: "postgres"
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
             - name: DB_HOST
-              value: "menu-db"
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
             - name: DB_PORT
-              value: "5432"
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PORT
+
+            # 🔴 --- Redis Configuration ---
             - name: REDIS_HOST
-              value: "redis"
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_HOST
             - name: REDIS_PORT
-              value: "6379"
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_PORT
 
           readinessProbe:
             httpGet:
@@ -68,7 +75,6 @@ spec:
               port: 8000
             initialDelaySeconds: 10
             periodSeconds: 5
-
           livenessProbe:
             httpGet:
               path: /health/
@@ -77,6 +83,9 @@ spec:
             periodSeconds: 10
 
 ---
+# ==========================================
+# 2. Menu Service Network ClusterIP (Dev)
+# ==========================================
 apiVersion: v1
 kind: Service
 metadata:

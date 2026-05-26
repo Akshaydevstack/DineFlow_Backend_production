@@ -76,17 +76,28 @@ WSGI_APPLICATION = 'kitchen_service.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ.get("DB_NAME", "order_db"),
-        "USER": os.environ.get("DB_USER", "postgres"),
-        "PASSWORD": os.environ.get("DB_PASSWORD", "postgres"),
-        "HOST": os.environ.get("DB_HOST", "localhost"),
+        "NAME": os.environ.get("DB_NAME"),
+        "USER": os.environ.get("DB_USER"),
+        "PASSWORD": os.environ.get("DB_PASSWORD"),
+        "HOST": os.environ.get("DB_HOST"),
         "PORT": os.environ.get("DB_PORT", "5432"),
+        
+        # 🚀 PRODUCTION UPGRADES BELOW:
+        
+        # Keep connections open for 60 seconds to reuse them across requests
+        "CONN_MAX_AGE": int(os.environ.get("CONN_MAX_AGE", 60)), 
+        
+        # Ensures broken connections are dropped before being reused (Django 4.2+)
+        "CONN_HEALTH_CHECKS": True, 
+        
+        # Force strict SSL/TLS encryption over the public internet
         "OPTIONS": {
-            "options": "-c search_path=public"
-        }
+            "sslmode": "require", 
+        },
     }
 }
 

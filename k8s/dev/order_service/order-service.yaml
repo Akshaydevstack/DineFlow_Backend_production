@@ -1,3 +1,434 @@
+# ==========================================
+# 1. Order Celery Beat (Dev)
+# ==========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-celery-beat
+  namespace: dineflow-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-celery-beat
+  template:
+    metadata:
+      labels:
+        app: order-celery-beat
+    spec:
+      containers:
+        - name: celery-beat
+          image: dineflow_backend-order_service:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - celery
+            - -A
+            - order_service
+            - beat
+            - -l
+            - info
+          env:
+            - name: DJANGO_SETTINGS_MODULE
+              value: "order_service.settings"
+            
+            # 🔴 --- Redis Configuration ---
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_PORT
+
+            # 🗄️ --- Database Configuration (Supabase) ---
+            - name: DB_NAME
+              value: "order_db"
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PORT
+
+---
+# ==========================================
+# 2. Order Celery Worker (Dev)
+# ==========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-celery-worker
+  namespace: dineflow-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-celery-worker
+  template:
+    metadata:
+      labels:
+        app: order-celery-worker
+    spec:
+      containers:
+        - name: celery-worker
+          image: dineflow_backend-order_service:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - celery
+            - -A
+            - order_service
+            - worker
+            - --loglevel=info
+            - -Q
+            - order_queue
+          env:
+            - name: DJANGO_SETTINGS_MODULE
+              value: "order_service.settings"
+              
+            # 🔴 --- Redis Configuration ---
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_PORT
+
+            # 🗄️ --- Database Configuration (Supabase) ---
+            - name: DB_NAME
+              value: "order_db"
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PORT
+
+---
+# ==========================================
+# 3. Order Kitchen Consumer (Dev)
+# ==========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-kitchen-consumer
+  namespace: dineflow-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-kitchen-consumer
+  template:
+    metadata:
+      labels:
+        app: order-kitchen-consumer
+    spec:
+      containers:
+        - name: consumer
+          image: dineflow_backend-order_service:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - python
+            - manage.py
+            - consume_kitchen_events
+          env:
+            # 🛠️ --- Kafka Configuration ---
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+            
+            # 🔴 --- Redis Configuration ---
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_PORT
+
+            # 🗄️ --- Database Configuration (Supabase) ---
+            - name: DB_NAME
+              value: "order_db"
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PORT
+
+---
+# ==========================================
+# 4. Order Menu Consumer (Dev)
+# ==========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-menu-consumer
+  namespace: dineflow-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-menu-consumer
+  template:
+    metadata:
+      labels:
+        app: order-menu-consumer
+    spec:
+      containers:
+        - name: consumer
+          image: dineflow_backend-order_service:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - python
+            - manage.py
+            - consume_menu_events
+          env:
+            # 🛠️ --- Kafka Configuration ---
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+
+            # 🔴 --- Redis Configuration ---
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_PORT
+
+            # 🗄️ --- Database Configuration (Supabase) ---
+            - name: DB_NAME
+              value: "order_db"
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PORT
+
+---
+# ==========================================
+# 5. Order Restaurant Consumer (Dev)
+# ==========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-restaurant-consumer
+  namespace: dineflow-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-restaurant-consumer
+  template:
+    metadata:
+      labels:
+        app: order-restaurant-consumer
+    spec:
+      containers:
+        - name: consumer
+          image: dineflow_backend-order_service:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - python
+            - manage.py
+            - consume_restaurant_events  
+          env:
+            # 🛠️ --- Kafka Configuration ---
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+            
+            # 🔴 --- Redis Configuration ---
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_PORT
+
+            # 🗄️ --- Database Configuration (Supabase) ---
+            - name: DB_NAME
+              value: "order_db"
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PORT
+
+---
+# ==========================================
+# 6. Order Table Consumer (Dev)
+# ==========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-table-consumer
+  namespace: dineflow-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-table-consumer
+  template:
+    metadata:
+      labels:
+        app: order-table-consumer
+    spec:
+      containers:
+        - name: consumer
+          image: dineflow_backend-order_service:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - python
+            - manage.py
+            - consume_table_events
+          env:
+            - name: K8S_ENV
+              value: "true"
+              
+            # 🛠️ --- Kafka Configuration ---
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+                  
+            # 🔴 --- Redis Configuration ---
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_PORT
+                  
+            # 🗄️ --- Database Configuration (Supabase) ---
+            - name: DB_NAME
+              value: "order_db"
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PORT
+
+---
+# ==========================================
+# 7. Order Service API (Dev)
+# ==========================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -5,66 +436,72 @@ metadata:
   namespace: dineflow-dev
 spec:
   replicas: 1
-
   strategy:
     type: RollingUpdate
     rollingUpdate:
       maxSurge: 0
       maxUnavailable: 1
-
   selector:
     matchLabels:
       app: order-service
-
   template:
     metadata:
       labels:
         app: order-service
-
     spec:
-      initContainers:
-        - name: init-order-db
-          image: postgres:15
-          imagePullPolicy: IfNotPresent
-          env:
-            - name: PGPASSWORD
-              value: postgres
-          command:
-            - sh
-            - -c
-            - |
-              echo "Waiting for Postgres..."
-              until pg_isready -h order-db -U postgres; do
-              sleep 2
-              done
-
+      # Note: initContainers removed because Supabase DB is externally managed.
       containers:
         - name: order-service
           image: dineflow_backend-order_service:latest
-          imagePullPolicy: Never
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
           env:
-            - name: REDIS_HOST
-              value: "redis"
-              
-            - name: REDIS_PORT
-              value: "6379"
-              
             - name: K8S_ENV
               value: "true"
+              
+            # 🔴 --- Redis Configuration ---
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_PORT
+
+            # 🛠️ --- Kafka Configuration ---
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+                  
+            # 🗄️ --- Database Configuration (Supabase) ---
             - name: DB_NAME
               value: "order_db"
             - name: DB_USER
-              value: "postgres"
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_USER
             - name: DB_PASSWORD
-              value: "postgres"
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
             - name: DB_HOST
-              value: "order-db"
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
             - name: DB_PORT
-              value: "5432"
-            - name: KAFKA_BOOTSTRAP_SERVERS
-              value: "host.docker.internal:9092"
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PORT
               
           readinessProbe:
             httpGet:
@@ -72,14 +509,17 @@ spec:
               port: 8000
             initialDelaySeconds: 10
             periodSeconds: 5
-
           livenessProbe:
             httpGet:
               path: /health/
               port: 8000
             initialDelaySeconds: 30
             periodSeconds: 10
+
 ---
+# ==========================================
+# 8. Order Service Network ClusterIP
+# ==========================================
 apiVersion: v1
 kind: Service
 metadata:

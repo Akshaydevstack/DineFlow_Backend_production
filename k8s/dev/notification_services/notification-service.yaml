@@ -1,3 +1,342 @@
+# ==========================================
+# 1. Notification Celery Beat (Dev)
+# ==========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-celery-beat
+  namespace: dineflow-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notification-celery-beat
+  template:
+    metadata:
+      labels:
+        app: notification-celery-beat
+    spec:
+      containers:
+        - name: celery-beat
+          image: dineflow_backend-notification_service:latest
+          imagePullPolicy: IfNotPresent  
+          command:
+            - celery
+            - -A
+            - notification_service
+            - beat
+            - -l
+            - info
+          env:
+            - name: CELERY_BROKER_URL
+              value: "redis://redis:6379/0"
+            - name: DJANGO_SETTINGS_MODULE
+              value: "notification_service.settings"
+            
+            # 🔴 --- Redis Configuration ---
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_PORT
+
+            # 🗄️ --- Database Configuration (Supabase) ---
+            - name: DB_NAME
+              value: "notification_db"
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PORT
+
+            # 🔥 --- Firebase Configuration ---
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: "/secrets/firebase-credentials.json"
+
+          volumeMounts:
+            - name: firebase-credentials
+              mountPath: /secrets
+              readOnly: true
+
+      volumes:
+        - name: firebase-credentials
+          secret:
+            secretName: firebase-auth-secret
+
+---
+# ==========================================
+# 2. Notification Celery Worker (Dev)
+# ==========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-celery-worker
+  namespace: dineflow-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notification-celery-worker
+  template:
+    metadata:
+      labels:
+        app: notification-celery-worker
+    spec:
+      containers:
+        - name: celery-worker
+          image: dineflow_backend-notification_service:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - celery
+            - -A
+            - notification_service
+            - worker
+            - --loglevel=info
+            - -Q
+            - notification_queue
+          env:
+            - name: CELERY_BROKER_URL
+              value: "redis://redis:6379/0"
+            - name: DJANGO_SETTINGS_MODULE
+              value: "notification_service.settings"
+              
+            # 🔴 --- Redis Configuration ---
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_PORT
+
+            # 🗄️ --- Database Configuration (Supabase) ---
+            - name: DB_NAME
+              value: "notification_db"
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PORT
+
+            # 🔥 --- Firebase Configuration ---
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: "/secrets/firebase-credentials.json"
+
+          volumeMounts:
+            - name: firebase-credentials
+              mountPath: /secrets
+              readOnly: true
+
+      volumes:
+        - name: firebase-credentials
+          secret:
+            secretName: firebase-auth-secret
+
+---
+# ==========================================
+# 3. Notification General Consumer (Dev)
+# ==========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-consumer
+  namespace: dineflow-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notification-consumer
+  template:
+    metadata:
+      labels:
+        app: notification-consumer
+    spec:
+      containers:
+        - name: consumer
+          image: dineflow_backend-notification_service:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - python
+            - manage.py
+            - consume_notifications
+          env:
+            # 🔴 --- Redis Configuration ---
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_PORT
+
+            # 🛠️ --- Kafka Configuration ---
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+
+            # 🗄️ --- Database Configuration (Supabase) ---
+            - name: DB_NAME
+              value: "notification_db"
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PORT
+
+            # 🔥 --- Firebase Configuration ---
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: "/secrets/firebase-credentials.json"
+
+          volumeMounts:
+            - name: firebase-credentials
+              mountPath: /secrets
+              readOnly: true
+
+      volumes:
+        - name: firebase-credentials
+          secret:
+            secretName: firebase-auth-secret
+
+---
+# ==========================================
+# 4. Notification Email Consumer (Dev)
+# ==========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-email-consumer
+  namespace: dineflow-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notification-email-consumer
+  template:
+    metadata:
+      labels:
+        app: notification-email-consumer
+    spec:
+      containers:
+        - name: notification-email-consumer
+          image: dineflow_backend-notification_service:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - python
+            - manage.py
+            - consume_welcome_emails
+          env:
+            # 🔴 --- Redis Configuration ---
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_PORT
+
+            # 🛠️ --- Kafka Configuration ---
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+
+            # ☁️ --- AWS Configuration ---
+            - name: AWS_DEFAULT_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: AWS_DEFAULT_REGION
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: AWS_SECRET_ACCESS_KEY
+
+            # 🔥 --- Firebase Configuration ---
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: "/secrets/firebase-credentials.json"
+
+          volumeMounts:
+            - name: firebase-credentials
+              mountPath: /secrets
+              readOnly: true
+
+      volumes:
+        - name: firebase-credentials
+          secret:
+            secretName: firebase-auth-secret
+
+---
+# ==========================================
+# 5. Notification Service API (Dev)
+# ==========================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -5,84 +344,110 @@ metadata:
   namespace: dineflow-dev
 spec:
   replicas: 1
-
   strategy:
     type: RollingUpdate
     rollingUpdate:
       maxSurge: 0
       maxUnavailable: 1
-
   selector:
     matchLabels:
       app: notification-service
-
   template:
     metadata:
       labels:
         app: notification-service
-
     spec:
-      initContainers:
-        - name: init-notification-db
-          image: postgres:15
-          imagePullPolicy: IfNotPresent
-          env:
-            - name: PGPASSWORD
-              value: postgres
-          command:
-            - sh
-            - -c
-            - |
-              echo "Waiting for Notification DB..."
-              until pg_isready -h notification-db -U postgres; do
-                sleep 2
-              done
-
       containers:
         - name: notification-service
           image: dineflow_backend-notification_service:latest
-          imagePullPolicy: Never
-
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
-
           env:
             - name: K8S_ENV
               value: "true"
-
             - name: DJANGO_SETTINGS_MODULE
               value: notification_service.settings
+              
+            # 🔴 --- Redis Configuration ---
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_PORT
 
+            # 🗄️ --- Database Configuration (Supabase) ---
             - name: DB_NAME
-              value: notification_db
+              value: "notification_db"
             - name: DB_USER
-              value: postgres
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_USER
             - name: DB_PASSWORD
-              value: postgres
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
             - name: DB_HOST
-              value: notification-db
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
             - name: DB_PORT
-              value: "5432"
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PORT
+                  
+            # 🛠️ --- Kafka Configuration ---
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
             - name: KAFKA_BROKER
-              value: host.docker.internal:9092
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
 
-          # -------------------------------
-          # Health Checks
-          # -------------------------------
+            # 🔥 --- Firebase Configuration ---
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: "/secrets/firebase-credentials.json"
+
+          volumeMounts:
+            - name: firebase-credentials
+              mountPath: /secrets
+              readOnly: true
+
           readinessProbe:
             httpGet:
               path: /health/
               port: 8000
             initialDelaySeconds: 10
             periodSeconds: 5
-
           livenessProbe:
             httpGet:
               path: /health/
               port: 8000
             initialDelaySeconds: 30
             periodSeconds: 10
+
+      volumes:
+        - name: firebase-credentials
+          secret:
+            secretName: firebase-auth-secret
+
 ---
+# ==========================================
+# 6. Notification Service Network ClusterIP
+# ==========================================
 apiVersion: v1
 kind: Service
 metadata:
@@ -96,3 +461,99 @@ spec:
       port: 8000
       targetPort: 8000
   type: ClusterIP
+
+---
+# ==========================================
+# 7. Notification Table Session Consumer
+# ==========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-table-session-consumer
+  namespace: dineflow-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notification-table-session-consumer
+  template:
+    metadata:
+      labels:
+        app: notification-table-session-consumer
+    spec:
+      containers:
+        - name: consumer
+          image: dineflow_backend-notification_service:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - python
+            - manage.py
+            - consume_table_sessions
+          env:
+            - name: DJANGO_SETTINGS_MODULE
+              value: "notification_service.settings"
+              
+            # 🔴 --- Redis Configuration ---
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_PORT
+
+            # 🛠️ --- Kafka Configuration ---
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+
+            # 🗄️ --- Database Configuration (Supabase) ---
+            - name: DB_NAME
+              value: "notification_db"
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PORT
+
+            # 🔥 --- Firebase Configuration ---
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: "/secrets/firebase-credentials.json"
+
+          volumeMounts:
+            - name: firebase-credentials
+              mountPath: /secrets
+              readOnly: true
+
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "300m"
+
+      volumes:
+        - name: firebase-credentials
+          secret:
+            secretName: firebase-auth-secret

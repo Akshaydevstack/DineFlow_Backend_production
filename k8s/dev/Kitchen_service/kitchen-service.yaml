@@ -1,3 +1,6 @@
+# ==========================================
+# 1. Kitchen Service API Deployment (Dev)
+# ==========================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -5,61 +8,61 @@ metadata:
   namespace: dineflow-dev
 spec:
   replicas: 1
-
   strategy:
     type: RollingUpdate
     rollingUpdate:
       maxSurge: 0
       maxUnavailable: 1
-
   selector:
     matchLabels:
       app: kitchen-service
-
   template:
     metadata:
       labels:
         app: kitchen-service
-
     spec:
-      initContainers:
-        - name: init-kitchen-db
-          image: postgres:15
-          imagePullPolicy: IfNotPresent
-          env:
-            - name: PGPASSWORD
-              value: postgres
-          command:
-            - sh
-            - -c
-            - |
-              echo "Waiting for Kitchen Postgres..."
-              until pg_isready -h kitchen-db -U postgres; do
-                sleep 2
-              done
-
+      # Note: initContainers removed because Supabase DB is externally managed.
       containers:
         - name: kitchen-service
           image: dineflow_backend-kitchen_service:latest
-          imagePullPolicy: Never
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
 
           env:
             - name: K8S_ENV
               value: "true"
+              
+            # 🗄️ --- Database Configuration (Supabase) ---
             - name: DB_NAME
-              value: "kitchen_db"
+              value: "kitchen_db"   # <--- Hardcoded strictly to kitchen_db
             - name: DB_USER
-              value: "postgres"
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_USER
             - name: DB_PASSWORD
-              value: "postgres"
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
             - name: DB_HOST
-              value: "kitchen-db"
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
             - name: DB_PORT
-              value: "5432"
-            - name: KAFKA_BROKER
-              value: "host.docker.internal:9092"
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PORT
+                  
+            # 🛠️ --- Kafka Configuration ---
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
 
           readinessProbe:
             httpGet:
@@ -67,14 +70,17 @@ spec:
               port: 8000
             initialDelaySeconds: 10
             periodSeconds: 5
-
           livenessProbe:
             httpGet:
               path: /health/
               port: 8000
             initialDelaySeconds: 30
             periodSeconds: 10
+
 ---
+# ==========================================
+# 2. Kitchen Service Network ClusterIP (Dev)
+# ==========================================
 apiVersion: v1
 kind: Service
 metadata:
@@ -86,3 +92,71 @@ spec:
   ports:
     - port: 8000
       targetPort: 8000
+
+---
+# ==========================================
+# 3. Kitchen Order Consumer Deployment (Dev)
+# ==========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kitchen-order-consumer
+  namespace: dineflow-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kitchen-order-consumer
+  template:
+    metadata:
+      labels:
+        app: kitchen-order-consumer
+    spec:
+      containers:
+        - name: consumer
+          image: dineflow_backend-kitchen_service:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - python
+            - manage.py
+            - consume_order_events
+          env:
+            - name: K8S_ENV
+              value: "true"
+              
+            # 🛠️ --- Kafka Configuration ---
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+
+            # 🗄️ --- Database Configuration (Supabase) ---
+            - name: DB_NAME
+              value: "kitchen_db"   # <--- Hardcoded strictly to kitchen_db
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PORT
+
+            # Optional but recommended
+            - name: KAFKA_CONSUMER_NAME
+              value: "kitchen-order-consumer"
+            - name: KITCHEN_DLQ_TOPIC
+              value: "kitchen.order.dlq"

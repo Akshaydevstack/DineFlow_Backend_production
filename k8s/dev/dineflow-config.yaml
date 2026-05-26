@@ -2,10 +2,10 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: dineflow-config
-  namespace: dineflow-production
+  namespace: dineflow-dev
 data:
-  KAFKA_BOOTSTRAP_SERVERS: "redpanda.dineflow-production.svc.cluster.local:9092"
-  REDIS_HOST: "dineflow-redis.xggdgp.0001.aps1.cache.amazonaws.com" 
+  KAFKA_BOOTSTRAP_SERVERS: "host.docker.internal:9092"
+  REDIS_HOST: "redis" 
   REDIS_PORT: "6379"
   POSTGRES_DB: "postgres"
   POSTGRES_USER: "postgres.baydkqdlezhtuisdebvp"

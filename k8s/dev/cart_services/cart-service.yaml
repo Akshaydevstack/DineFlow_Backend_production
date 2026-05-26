@@ -1,3 +1,89 @@
+# ==========================================
+# 1. Cart Menu Consumer Deployment (Dev)
+# ==========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cart-menu-consumer
+  namespace: dineflow-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cart-menu-consumer
+  template:
+    metadata:
+      labels:
+        app: cart-menu-consumer
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: consumer
+          image: dineflow/cart-service:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - python
+            - manage.py
+            - consume_menu_events
+          env:
+            - name: K8S_ENV
+              value: "true"
+
+            # 🛠️ --- Kafka Configuration ---
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+
+            # 🗄️ --- Database Configuration (Supabase) ---
+            - name: DB_NAME
+              value: "cart_db"   # <--- Hardcoded strictly to cart_db
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PORT
+
+            # 🔴 --- Redis Configuration ---
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_PORT
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+---
+# ==========================================
+# 2. Cart Service API Deployment (Dev)
+# ==========================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -5,74 +91,80 @@ metadata:
   namespace: dineflow-dev
 spec:
   replicas: 1
-
   strategy:
     type: RollingUpdate
     rollingUpdate:
       maxSurge: 0
       maxUnavailable: 1
-
   selector:
     matchLabels:
       app: cart-service
-
   template:
     metadata:
       labels:
         app: cart-service
-
     spec:
-      initContainers:
-        - name: init-cart-db
-          image: postgres:15
-          imagePullPolicy: IfNotPresent
-          env:
-            - name: PGPASSWORD
-              value: postgres
-          command:
-            - sh
-            - -c
-            - |
-              echo "Waiting for Cart DB..."
-              until pg_isready -h cart-db -U postgres; do
-                sleep 2
-              done
-
+      # Note: initContainers for pg_isready removed. 
+      # Supabase DB is externally managed.
       containers:
         - name: cart-service
           image: dineflow/cart-service:latest
-          imagePullPolicy: Never
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
 
           env:
             - name: K8S_ENV
               value: "true"
-              
-            - name: KAFKA_BOOTSTRAP_SERVERS
-              value: "host.docker.internal:9092"
-
             - name: DJANGO_SETTINGS_MODULE
-              value: cart_service.settings
+              value: "cart_service.settings"
+              
+            # 🛠️ --- Kafka Configuration ---
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
 
+            # 🔴 --- Redis Configuration ---
             - name: REDIS_HOST
-              value: redis
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_HOST
             - name: REDIS_PORT
-              value: "6379"
+              valueFrom:
+                configMapKeyRef:
+                  name: dineflow-config
+                  key: REDIS_PORT
 
+            # 🗄️ --- Database Configuration (Supabase) ---
             - name: DB_NAME
-              value: cart_db
+              value: "cart_db"   # <--- Hardcoded strictly to cart_db
             - name: DB_USER
-              value: postgres
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_USER
             - name: DB_PASSWORD
-              value: postgres
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PASSWORD
             - name: DB_HOST
-              value: cart-db
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_HOST
             - name: DB_PORT
-              value: "5432"
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PORT
 
+            # 🌐 --- Internal Service Discovery ---
             - name: MENU_SERVICE_URL
-              value: http://menu-service.dineflow-dev.svc.cluster.local:8000
+              value: "http://menu-service.dineflow-dev.svc.cluster.local:8000"
 
           readinessProbe:
             httpGet:
@@ -87,7 +179,11 @@ spec:
               port: 8000
             initialDelaySeconds: 30
             periodSeconds: 10
+
 ---
+# ==========================================
+# 3. Cart Service Network ClusterIP (Dev)
+# ==========================================
 apiVersion: v1
 kind: Service
 metadata:

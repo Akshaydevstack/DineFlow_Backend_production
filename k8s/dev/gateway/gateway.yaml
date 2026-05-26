@@ -1,3 +1,6 @@
+# ==========================================
+# 1. API Gateway (NGINX) Deployment (Dev)
+# ==========================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -16,7 +19,7 @@ spec:
       containers:
         - name: nginx
           image: dineflow-nginx:latest
-          imagePullPolicy: Never
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80
 
@@ -25,7 +28,8 @@ spec:
               mountPath: /etc/nginx/custom_nginx.conf
               subPath: custom_nginx.conf
 
-            - name: jwt-public-key
+            # 🔑 Updated to use the unified jwt-keys volume
+            - name: jwt-keys-volume
               mountPath: /etc/nginx/jwt/public.pem
               subPath: public.pem
               readOnly: true
@@ -35,10 +39,15 @@ spec:
           configMap:
             name: nginx-config
 
-        - name: jwt-public-key
+        # 🔑 Updated to pull from the single secret created by your setup script
+        - name: jwt-keys-volume
           secret:
-            secretName: jwt-public-key
+            secretName: jwt-keys
+
 ---
+# ==========================================
+# 2. API Gateway Network NodePort (Dev)
+# ==========================================
 apiVersion: v1
 kind: Service
 metadata:
@@ -51,4 +60,5 @@ spec:
   ports:
     - port: 80
       targetPort: 80
+      # Maps localhost:30080 directly to this gateway on Docker Desktop
       nodePort: 30080
