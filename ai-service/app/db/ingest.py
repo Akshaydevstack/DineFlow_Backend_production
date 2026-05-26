@@ -217,7 +217,17 @@ def ingest_restaurants(restaurants: list):
 
 def build_table_text(table: dict) -> str:
     """Creates a semantic string representing a specific table."""
-    status = "Occupied" if table.get('is_occupied') else "Available"
+    
+    is_occupied = table.get('is_occupied', False)
+    is_reserved = table.get('is_reserved_manual', False)
+    
+    # Mirror the exact logic from the AI tool
+    if is_occupied:
+        status = "Occupied"
+    elif is_reserved:
+        status = "Not available (Reserved for a person)"
+    else:
+        status = "Available"
     
     parts = [
         f"Table Number: {table.get('table_number')}",
@@ -226,8 +236,8 @@ def build_table_text(table: dict) -> str:
         f"Table Type: {table.get('table_type')}",
         f"Current Status: {status}"
     ]
+    
     return " | ".join(filter(None, parts))
-
 
 def ingest_tables(tables: list):
     """Handles the restaurant.table.upsert event."""
