@@ -88,9 +88,6 @@ DATABASES = {
         
         # 🚀 PRODUCTION UPGRADES BELOW:
         
-        "CONN_MAX_AGE": int(os.environ.get("CONN_MAX_AGE", 60)), 
-    
-        "CONN_HEALTH_CHECKS": True, 
         
         # Force strict SSL/TLS encryption over the public internet
         "OPTIONS": {

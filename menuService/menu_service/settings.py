@@ -85,13 +85,7 @@ DATABASES = {
         "PASSWORD": os.environ.get("DB_PASSWORD"),
         "HOST": os.environ.get("DB_HOST"),
         "PORT": os.environ.get("DB_PORT", "5432"),
-        
-        # 🚀 PRODUCTION UPGRADES BELOW:
-        
-        "CONN_MAX_AGE": int(os.environ.get("CONN_MAX_AGE", 60)), 
-    
-        "CONN_HEALTH_CHECKS": True, 
-        
+      
         # Force strict SSL/TLS encryption over the public internet
         "OPTIONS": {
             "sslmode": "require", 

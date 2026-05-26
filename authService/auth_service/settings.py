@@ -103,11 +103,6 @@ DATABASES = {
         "PORT": os.environ.get("DB_PORT", "5432"),
         
         # 🚀 PRODUCTION UPGRADES BELOW:
-        
-        "CONN_MAX_AGE": int(os.environ.get("CONN_MAX_AGE", 60)), 
-        
-        "CONN_HEALTH_CHECKS": True, 
-        
         "OPTIONS": {
             "sslmode": "require", 
         },
