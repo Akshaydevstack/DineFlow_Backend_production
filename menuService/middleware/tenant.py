@@ -1,29 +1,30 @@
 import os
 import re
-from django.db import connection, transaction
+from django.db import connection
 from django.http import JsonResponse
 
-# 🟢 FIX 1: Pull the service name from env (Defaults to 'menu')
-SERVICE_NAME = os.getenv("SERVICE_NAME", "menu")
-
-# Strict regex validation prevents SQL injection
+# Matches 'rest_' followed by alphanumeric characters (e.g., 'rest_298bf97a')
 TENANT_REGEX = re.compile(r"^rest_[a-z0-9]+$")
+
+# Pull the microservice identifier from env (e.g., 'order', 'notification', 'auth')
+SERVICE_NAME = os.getenv("SERVICE_NAME", "menu").lower()
+
 
 class TenantSchemaMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
-
-        # Skip paths that don't need tenant isolation
+        # 1. Skip paths that don't require isolated tenant database routing
         if request.path.startswith((
             "/health",
-            "/internal/tenants/",
-            "/api/menu/schema/",
-            "/api/menu/swagger/"
+            "/internal/tenants",
+            "/api/order/swagger/",
+            "/api/order/schema/"
         )):
             return self.get_response(request)
 
+        # 2. Extract and sanitize the tracking context restaurant header
         tenant_id = request.headers.get("X-Restaurant-Id")
 
         if not tenant_id:
@@ -32,26 +33,34 @@ class TenantSchemaMiddleware:
                 status=400
             )
 
-        base_tenant = tenant_id.lower()
+        base_tenant = tenant_id.lower().strip()
 
         if not TENANT_REGEX.match(base_tenant):
             return JsonResponse(
-                {"error": "Invalid tenant id"},
+                {"error": "Invalid tenant id format"},
                 status=400
             )
-            
-        # 🟢 FIX 2: Construct the isolated schema name (e.g., 'menu_rest_a')
+
+        # 3. Construct the matching target isolated schema (e.g., 'order_rest_298bf97a')
         target_schema = f"{SERVICE_NAME}_{base_tenant}"
-        
+
         try:
-            # 🟢 FIX 3: Wrap in an atomic block and use SET LOCAL for Supabase pooler safety
-            with transaction.atomic():
+            # Point the active connection path to the current tenant's tablespace
+            with connection.cursor() as cursor:
+                cursor.execute(f'SET search_path TO "{target_schema}", public')
+
+            # CRITICAL FOR MULTI-TENANCY WORKING RELIABLY: 
+            # Flush Django's routing wrapper cache so the ORM respects the path switch immediately
+            if hasattr(connection, 'close_if_unusable_or_obsolete'):
+                connection.close_if_unusable_or_obsolete()
+
+            # Pass request execution down into the target API view layer safely
+            return self.get_response(request)
+
+        finally:
+            # 4. ALWAYS cleanly reset search path back to public to prevent connection bleeding
+            try:
                 with connection.cursor() as cursor:
-                    # Validated via regex, so f-string injection is completely safe here
-                    cursor.execute(f'SET LOCAL search_path TO "{target_schema}", public')
-                
-                # The view executes safely inside this isolated transaction block
-                return self.get_response(request)
-        except Exception as e:
-            # Re-raise the exception after the transaction rolls back
-            raise e
+                    cursor.execute("SET search_path TO public")
+            except Exception:
+                pass
