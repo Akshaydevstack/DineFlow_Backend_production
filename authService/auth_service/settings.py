@@ -96,15 +96,14 @@ WSGI_APPLICATION = 'auth_service.wsgi.application'
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ.get("DB_NAME"),
+        "NAME": os.environ.get("DB_NAME", "postgres"), # Read from env, fallback to postgres
         "USER": os.environ.get("DB_USER"),
         "PASSWORD": os.environ.get("DB_PASSWORD"),
-        "HOST": os.environ.get("DB_HOST"),
-        "PORT": os.environ.get("DB_PORT", "6543"),
-        "CONN_MAX_AGE": 0,  # ← Must be 0 for Transaction Pooler
+        "HOST": os.environ.get("DB_HOST"),             # FIXED: Was POSTGRES_HOST
+        "PORT": os.environ.get("DB_PORT", "6543"),     # FIXED: Was POSTGRES_PORT
         "OPTIONS": {
-            "sslmode": "require",
-            "options": "-c search_path=public",  # ← explicit schema
+            # This isolates the microservice to its own schema
+            "options": "-c search_path=auth_service,public" 
         },
     }
 }

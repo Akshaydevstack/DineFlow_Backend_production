@@ -42,7 +42,6 @@ if os.getenv("K8S_ENV") == "true":
 # Application definition
 
 INSTALLED_APPS = [
-    "django.contrib.contenttypes",
     "rest_framework",
     'drf_spectacular',
     "tickets",

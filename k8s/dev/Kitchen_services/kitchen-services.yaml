@@ -32,10 +32,13 @@ spec:
           env:
             - name: K8S_ENV
               value: "true"
+
+            - name: SERVICE_NAME
+              value: "kitchen"
               
             # 🗄️ --- Database Configuration (Supabase) ---
             - name: DB_NAME
-              value: "kitchen_db"   # <--- Hardcoded strictly to kitchen_db
+              value: "postgres"   
             - name: DB_USER
               valueFrom:
                 secretKeyRef:
@@ -123,6 +126,9 @@ spec:
           env:
             - name: K8S_ENV
               value: "true"
+
+            - name: SERVICE_NAME
+              value: "kitchen"
               
             # 🛠️ --- Kafka Configuration ---
             - name: KAFKA_BOOTSTRAP_SERVERS
@@ -133,7 +139,7 @@ spec:
 
             # 🗄️ --- Database Configuration (Supabase) ---
             - name: DB_NAME
-              value: "kitchen_db"   # <--- Hardcoded strictly to kitchen_db
+              value: "postgres"   # <--- Hardcoded strictly to kitchen_db
             - name: DB_USER
               valueFrom:
                 secretKeyRef:

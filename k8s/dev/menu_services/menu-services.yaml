@@ -32,10 +32,13 @@ spec:
           env:
             - name: K8S_ENV
               value: "true"
+        
+            - name: SERVICE_NAME
+              value: "menu"
 
             # 🗄️ --- Database Configuration (Supabase) ---
             - name: DB_NAME
-              value: "menu_db"   # <--- Hardcoded strictly to menu_db
+              value: "postgres"   # <--- Hardcoded strictly to menu_db
             - name: DB_USER
               valueFrom:
                 secretKeyRef:

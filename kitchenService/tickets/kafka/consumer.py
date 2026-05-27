@@ -1,7 +1,9 @@
+import os
 import json
 import logging
 import re
 import signal
+from contextlib import contextmanager
 
 from confluent_kafka import Consumer
 from django.conf import settings
@@ -21,7 +23,11 @@ logger = logging.getLogger(__name__)
 # Config
 # --------------------------------------------------
 MAX_RETRIES = 3
-TENANT_REGEX = re.compile(r"^[a-z][a-z0-9_]+$")
+
+# 🟢 FIX 1: Standardized regex and dynamic service name
+TENANT_REGEX = re.compile(r"^rest_[a-z0-9]+$")
+SERVICE_NAME = os.getenv("SERVICE_NAME", "kitchen")
+
 CONSUMER_NAME = "kitchen-order-consumer"
 DLQ_TOPIC = "kitchen.order.dlq"
 
@@ -57,23 +63,33 @@ consumer.subscribe([
 
 
 # --------------------------------------------------
-# Tenant schema helpers
+# Tenant schema helper (Supabase Pooler Safe)
 # --------------------------------------------------
-def _set_schema(restaurant_id: str):
+
+# 🟢 FIX 2: Replaced manual set/reset with a robust Context Manager
+@contextmanager
+def tenant_schema(restaurant_id: str):
+    """
+    Safely switches to a tenant's schema using a transaction-bound SET LOCAL.
+    Automatically reverts to the public schema when the block exits.
+    """
     if not restaurant_id:
         raise ValueError("restaurant_id missing")
 
-    schema = restaurant_id.lower()
-    if not TENANT_REGEX.match(schema):
-        raise ValueError(f"Invalid schema: {schema}")
+    base_tenant = restaurant_id.lower()
+    if not TENANT_REGEX.match(base_tenant):
+        raise ValueError(f"Invalid schema: {base_tenant}")
 
-    with connection.cursor() as cursor:
-        cursor.execute(f'SET search_path TO "{schema}", public')
+    # Construct the prefixed schema (e.g., 'kitchen_rest_123')
+    target_schema = f"{SERVICE_NAME}_{base_tenant}"
 
-
-def _reset_schema():
-    with connection.cursor() as cursor:
-        cursor.execute("SET search_path TO public")
+    # Wrap the entire execution in an atomic transaction
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            # SET LOCAL guarantees this search path ONLY exists for this transaction
+            cursor.execute(f'SET LOCAL search_path TO "{target_schema}", public')
+        
+        yield
 
 
 # --------------------------------------------------
@@ -84,32 +100,37 @@ def process_event(event: dict, topic: str):
     if not restaurant_id:
         raise ValueError("restaurant_id missing in event")
 
-    _set_schema(restaurant_id)
+    # 🟢 FIX 3: Apply the context manager
+    with tenant_schema(restaurant_id):
+        
+        try:
+            if topic == "orders.placed":
+                # The tenant_schema block is already atomic, but nesting this is 
+                # perfectly safe in Django and acts as a savepoint.
+                with transaction.atomic():
+                    ticket = handle_order_placed(event, restaurant_id)
 
-    try:
-        if topic == "orders.placed":
+                    if ticket:
+                        transaction.on_commit(
+                            lambda: publish_kitchen_ticket_event("CREATED", ticket)
+                        )
+                        
+            elif topic == "orders.cancelled":
+                with transaction.atomic():
+                    ticket = handle_order_cancelled(event)
+                    
+                    if ticket:
+                        transaction.on_commit(
+                            lambda: publish_kitchen_ticket_event("CANCELLED", ticket)
+                        )
 
-            with transaction.atomic():
-                ticket = handle_order_placed(event, restaurant_id)
+            else:
+                raise ValueError(f"Unknown topic: {topic}")
 
-                if ticket:
-                    transaction.on_commit(
-                        lambda: publish_kitchen_ticket_event("CREATED", ticket)
-                    )
-        elif topic == "orders.cancelled":
-
-            with transaction.atomic():
-                ticket = handle_order_cancelled(event)
-
-                transaction.on_commit(
-                    lambda: publish_kitchen_ticket_event("CANCELLED", ticket)
-                )
-
-        else:
-            raise ValueError(f"Unknown topic: {topic}")
-
-    finally:
-        _reset_schema()
+        except Exception as e:
+            # If an error happens, we re-raise it so the retry logic catches it.
+            # The context manager will still safely close the database connection.
+            raise e
 
 
 # --------------------------------------------------

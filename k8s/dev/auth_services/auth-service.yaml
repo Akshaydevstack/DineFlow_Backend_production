@@ -68,7 +68,7 @@ spec:
 
             # 🗄️ --- Database Configuration (Supabase) ---
             - name: DB_NAME
-              value: "auth_db"
+              value: "postgres"
             - name: DB_USER
               valueFrom:
                 secretKeyRef:
@@ -175,7 +175,7 @@ spec:
               
             # 🗄️ --- Database Configuration (Supabase) ---
             - name: DB_NAME
-              value: "auth_db"
+              value: "postgres"
             - name: DB_USER
               valueFrom:
                 secretKeyRef:

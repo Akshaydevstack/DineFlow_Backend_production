@@ -7,7 +7,7 @@ metadata:
   name: order-service
   namespace: dineflow-production
 spec:
-  replicas: 1 # Kept at 1 to conserve cluster memory
+  replicas: 1 
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -65,6 +65,8 @@ spec:
           env:
             - name: K8S_ENV
               value: "true"
+            - name: SERVICE_NAME
+              value: "order"
             - name: REDIS_HOST
               valueFrom:
                 configMapKeyRef:
@@ -81,7 +83,7 @@ spec:
                   name: dineflow-config
                   key: KAFKA_BOOTSTRAP_SERVERS
             - name: DB_NAME
-              value: "order_db"
+              value: "postgres"
             - name: DB_USER
               valueFrom:
                 configMapKeyRef:
@@ -169,12 +171,13 @@ spec:
               cpu: "300m"
               memory: "256Mi"
           env:
+            - name: SERVICE_NAME
+              value: "order"
             - name: KAFKA_BOOTSTRAP_SERVERS
               valueFrom:
                 configMapKeyRef:
                   name: dineflow-config
                   key: KAFKA_BOOTSTRAP_SERVERS
-                  
             - name: REDIS_HOST
               valueFrom:
                 configMapKeyRef:
@@ -190,7 +193,7 @@ spec:
             - name: DJANGO_SETTINGS_MODULE
               value: "order_service.settings"
             - name: DB_NAME
-              value: "order_db"
+              value: "postgres"
             - name: DB_USER
               valueFrom:
                 configMapKeyRef:
@@ -251,12 +254,13 @@ spec:
               cpu: "500m"
               memory: "512Mi"
           env:
+            - name: SERVICE_NAME
+              value: "order"
             - name: KAFKA_BOOTSTRAP_SERVERS
               valueFrom:
                 configMapKeyRef:
                   name: dineflow-config
                   key: KAFKA_BOOTSTRAP_SERVERS
-
             - name: REDIS_HOST
               valueFrom:
                 configMapKeyRef:
@@ -272,7 +276,7 @@ spec:
             - name: DJANGO_SETTINGS_MODULE
               value: "order_service.settings"
             - name: DB_NAME
-              value: "order_db"
+              value: "postgres"
             - name: DB_USER
               valueFrom:
                 configMapKeyRef:
@@ -329,6 +333,8 @@ spec:
               cpu: "500m"
               memory: "512Mi"
           env:
+            - name: SERVICE_NAME
+              value: "order"
             - name: KAFKA_BOOTSTRAP_SERVERS
               valueFrom:
                 configMapKeyRef:
@@ -345,7 +351,7 @@ spec:
                   name: dineflow-config
                   key: REDIS_PORT
             - name: DB_NAME
-              value: "order_db"
+              value: "postgres"
             - name: DB_USER
               valueFrom:
                 configMapKeyRef:
@@ -402,6 +408,8 @@ spec:
               cpu: "500m"
               memory: "512Mi"
           env:
+            - name: SERVICE_NAME
+              value: "order"
             - name: KAFKA_BOOTSTRAP_SERVERS
               valueFrom:
                 configMapKeyRef:
@@ -418,7 +426,7 @@ spec:
                   name: dineflow-config
                   key: REDIS_PORT
             - name: DB_NAME
-              value: "order_db"
+              value: "postgres"
             - name: DB_USER
               valueFrom:
                 configMapKeyRef:
@@ -477,6 +485,8 @@ spec:
           env:
             - name: K8S_ENV
               value: "true"
+            - name: SERVICE_NAME
+              value: "order"
             - name: REDIS_HOST
               valueFrom:
                 configMapKeyRef:
@@ -493,7 +503,7 @@ spec:
                   name: dineflow-config
                   key: KAFKA_BOOTSTRAP_SERVERS
             - name: DB_NAME
-              value: "order_db"
+              value: "postgres"
             - name: DB_USER
               valueFrom:
                 configMapKeyRef:
@@ -552,6 +562,8 @@ spec:
           env:
             - name: K8S_ENV
               value: "true"
+            - name: SERVICE_NAME
+              value: "order"
             - name: REDIS_HOST
               valueFrom:
                 configMapKeyRef:
@@ -568,7 +580,7 @@ spec:
                   name: dineflow-config
                   key: KAFKA_BOOTSTRAP_SERVERS
             - name: DB_NAME
-              value: "order_db"
+              value: "postgres"
             - name: DB_USER
               valueFrom:
                 configMapKeyRef:

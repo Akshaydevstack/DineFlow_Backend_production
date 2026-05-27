@@ -30,6 +30,9 @@ spec:
           env:
             - name: DJANGO_SETTINGS_MODULE
               value: "order_service.settings"
+
+            - name: SERVICE_NAME
+              value: "order"
             
             # 🔴 --- Redis Configuration ---
             - name: REDIS_HOST
@@ -45,7 +48,7 @@ spec:
 
             # 🗄️ --- Database Configuration (Supabase) ---
             - name: DB_NAME
-              value: "order_db"
+              value: "postgres"
             - name: DB_USER
               valueFrom:
                 secretKeyRef:
@@ -102,6 +105,9 @@ spec:
             - name: DJANGO_SETTINGS_MODULE
               value: "order_service.settings"
               
+            - name: SERVICE_NAME
+              value: "order"
+
             # 🔴 --- Redis Configuration ---
             - name: REDIS_HOST
               valueFrom:
@@ -116,7 +122,7 @@ spec:
 
             # 🗄️ --- Database Configuration (Supabase) ---
             - name: DB_NAME
-              value: "order_db"
+              value: "postgres"
             - name: DB_USER
               valueFrom:
                 secretKeyRef:
@@ -173,6 +179,9 @@ spec:
                   name: dineflow-config
                   key: KAFKA_BOOTSTRAP_SERVERS
             
+            - name: SERVICE_NAME
+              value: "order"
+            
             # 🔴 --- Redis Configuration ---
             - name: REDIS_HOST
               valueFrom:
@@ -187,7 +196,7 @@ spec:
 
             # 🗄️ --- Database Configuration (Supabase) ---
             - name: DB_NAME
-              value: "order_db"
+              value: "postgres"
             - name: DB_USER
               valueFrom:
                 secretKeyRef:
@@ -243,6 +252,9 @@ spec:
                 configMapKeyRef:
                   name: dineflow-config
                   key: KAFKA_BOOTSTRAP_SERVERS
+            
+            - name: SERVICE_NAME
+              value: "order"
 
             # 🔴 --- Redis Configuration ---
             - name: REDIS_HOST
@@ -258,7 +270,7 @@ spec:
 
             # 🗄️ --- Database Configuration (Supabase) ---
             - name: DB_NAME
-              value: "order_db"
+              value: "postgres"
             - name: DB_USER
               valueFrom:
                 secretKeyRef:
@@ -315,6 +327,9 @@ spec:
                   name: dineflow-config
                   key: KAFKA_BOOTSTRAP_SERVERS
             
+            - name: SERVICE_NAME
+              value: "order"
+            
             # 🔴 --- Redis Configuration ---
             - name: REDIS_HOST
               valueFrom:
@@ -329,7 +344,7 @@ spec:
 
             # 🗄️ --- Database Configuration (Supabase) ---
             - name: DB_NAME
-              value: "order_db"
+              value: "postgres"
             - name: DB_USER
               valueFrom:
                 secretKeyRef:
@@ -388,6 +403,9 @@ spec:
                 configMapKeyRef:
                   name: dineflow-config
                   key: KAFKA_BOOTSTRAP_SERVERS
+            
+            - name: SERVICE_NAME
+              value: "order"
                   
             # 🔴 --- Redis Configuration ---
             - name: REDIS_HOST
@@ -403,7 +421,7 @@ spec:
                   
             # 🗄️ --- Database Configuration (Supabase) ---
             - name: DB_NAME
-              value: "order_db"
+              value: "postgres"
             - name: DB_USER
               valueFrom:
                 secretKeyRef:
@@ -471,6 +489,9 @@ spec:
                 configMapKeyRef:
                   name: dineflow-config
                   key: REDIS_PORT
+            
+            - name: SERVICE_NAME
+              value: "order"
 
             # 🛠️ --- Kafka Configuration ---
             - name: KAFKA_BOOTSTRAP_SERVERS
@@ -481,7 +502,7 @@ spec:
                   
             # 🗄️ --- Database Configuration (Supabase) ---
             - name: DB_NAME
-              value: "order_db"
+              value: "postgres"
             - name: DB_USER
               valueFrom:
                 secretKeyRef:

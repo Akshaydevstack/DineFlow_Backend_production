@@ -40,8 +40,6 @@ if os.getenv("K8S_ENV") == "true":
 
 
 INSTALLED_APPS = [
-    'django.contrib.contenttypes',
-    'corsheaders',
     'rest_framework',
     'drf_spectacular',
     'cart'

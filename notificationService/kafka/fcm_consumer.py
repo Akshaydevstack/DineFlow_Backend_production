@@ -1,14 +1,16 @@
+import os
 import json
 import logging
+import re
 import signal
+from contextlib import contextmanager
 
 from confluent_kafka import Consumer
 from django.conf import settings
-from django.db import transaction
+from django.db import connection, transaction
 from django.utils.timezone import now
 
 from firebase_pushnotification.models import Notification
-from firebase_pushnotification.db.schema import set_schema, reset_schema
 from firebase_pushnotification.services.fcm_service import send_push_notification_task
 from kafka.producer import get_producer
 from kafka.dlq_producer import send_to_dlq
@@ -20,10 +22,17 @@ channel_layer = get_channel_layer()
 
 logger = logging.getLogger("notification.consumer")
 
+# --------------------------------------------------
+# Config
+# --------------------------------------------------
 MAX_RETRIES = 3
 DLQ_TOPIC = "notification.dlq"
 CONSUMER_NAME = "notification-consumer"
 running = True
+
+# 🟢 FIX 1: Standardized regex and service name for isolation
+TENANT_REGEX = re.compile(r"^rest_[a-z0-9]+$")
+SERVICE_NAME = os.getenv("SERVICE_NAME", "notification")
 
 
 # ----------------------------
@@ -49,7 +58,6 @@ consumer = Consumer({
     "enable.auto.commit": False,
 })
 
-
 consumer.subscribe([
     "orders.placed",
     "orders.cancelled",
@@ -68,8 +76,31 @@ TOPIC_TO_NOTIFICATION = {
     "kitchen.ticket.preparing": ("Order Preparing", "Your order is being prepared 🍳"),
     "kitchen.ticket.ready": ("Order Ready", "Your order is ready 🍽️"),
     "kitchen.ticket.cancelled": ("Order Cancelled", "Kitchen cancelled your order ❌"),
-     "kitchen.ticket.created" : ("Kitchen ticket create", "Kitchen created a new ticket")
+    "kitchen.ticket.created": ("Kitchen ticket create", "Kitchen created a new ticket")
 }
+
+
+# --------------------------------------------------
+# Tenant schema helper (Supabase Pooler Safe)
+# --------------------------------------------------
+@contextmanager
+def tenant_schema(restaurant_id: str):
+    """
+    Safely switches to a tenant's schema using a transaction-bound SET LOCAL.
+    """
+    if not restaurant_id:
+        raise ValueError("restaurant_id missing")
+
+    base_tenant = restaurant_id.lower()
+    if not TENANT_REGEX.match(base_tenant):
+        raise ValueError(f"Invalid schema: {base_tenant}")
+
+    target_schema = f"{SERVICE_NAME}_{base_tenant}"
+
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            cursor.execute(f'SET LOCAL search_path TO "{target_schema}", public')
+        yield
 
 
 # ----------------------------
@@ -97,40 +128,36 @@ def process_event(event: dict, topic: str):
         },
     )
 
-    set_schema(restaurant_id)
-
-    try:
-        with transaction.atomic():
-            Notification.objects.create(
-                user_id=user_id,
-                title=title,
-                body=body,
-                topic=topic,
-                reference_id=event.get("order_id"),
-                created_at=now(),
-            )
-
-        # Queue FCM push
-        send_push_notification_task.delay(
+    # 🟢 FIX 2: Use the context manager for database operations ONLY
+    with tenant_schema(restaurant_id):
+        # We don't need a second transaction.atomic() here because 
+        # the tenant_schema context manager already wraps this in one!
+        Notification.objects.create(
             user_id=user_id,
-            restaurant_id=restaurant_id,
             title=title,
             body=body,
+            topic=topic,
+            reference_id=event.get("order_id"),
+            created_at=now(),
         )
 
-        logger.info(f"✅ Notification stored & queued {topic}")
+    # 🟢 FIX 3: Push tasks OUTSIDE the DB context block
+    # By un-indenting, we release the PostgreSQL connection back to the Supabase pooler
+    # BEFORE we spend time talking to Redis or Firebase. 
 
-    finally:
-        reset_schema()
+    # Queue FCM push
+    send_push_notification_task.delay(
+        user_id=user_id,
+        restaurant_id=restaurant_id,
+        title=title,
+        body=body,
+    )
+    logger.info(f"✅ Notification stored & queued {topic}")
 
-# -------------------------------------------------
-# 🔴 Realtime WebSocket Push (Kitchen Display)
-# -------------------------------------------------
-
-    if topic in {
-        "kitchen.ticket.created",
-        "kitchen.ticket.cancelled",
-    }:
+    # -------------------------------------------------
+    # 🔴 Realtime WebSocket Push (Kitchen Display)
+    # -------------------------------------------------
+    if topic in {"kitchen.ticket.created", "kitchen.ticket.cancelled"}:
         try:
             async_to_sync(channel_layer.group_send)(
                 f"kitchen_display_{restaurant_id}",
@@ -147,7 +174,6 @@ def process_event(event: dict, topic: str):
                     "topic": topic,
                 },
             )
-
         except Exception as e:
             logger.exception(
                 "❌ Failed to send realtime kitchen update",
@@ -157,6 +183,7 @@ def process_event(event: dict, topic: str):
                     "error": str(e),
                 },
             )
+
 
 # ----------------------------
 # Main consume loop
@@ -184,7 +211,6 @@ def consume_notification_events():
                 consumer.commit(msg)
 
             except Exception as e:
-                # ✅ String interpolation forces the error into the console output
                 logger.warning(
                     f"⚠️ Processing failed for topic {msg.topic()}: {str(e)}", 
                     extra={

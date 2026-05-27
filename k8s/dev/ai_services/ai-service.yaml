@@ -48,14 +48,14 @@ spec:
             - name: MENU_SERVICE_URL
               value: "http://menu-service.dineflow-dev.svc.cluster.local:8000"
 
-            # --- Postgres ---
+            # --- Postgres (Supabase) ---
             - name: POSTGRES_DB
-              value: "ai_db" 
+              value: "postgres"  # 🟢 CHANGED: Must be 'postgres' for Supabase
             - name: POSTGRES_USER
               valueFrom:
-                configMapKeyRef:
-                  name: dineflow-config
-                  key: POSTGRES_USER
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_USER   # 🟢 CHANGED: Pull from Secret for consistency
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -68,9 +68,9 @@ spec:
                   key: DB_HOST
             - name: POSTGRES_PORT
               valueFrom:
-                configMapKeyRef:
-                  name: dineflow-config
-                  key: POSTGRES_PORT
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PORT   # 🟢 CHANGED: Pull from Secret (guarantees port 6543)
 
             # --- Redis ---
             - name: REDIS_HOST
@@ -163,14 +163,14 @@ spec:
                   name: dineflow-config
                   key: REDIS_PORT
 
-            # --- Postgres ---
+            # --- Postgres (Supabase) ---
             - name: POSTGRES_DB
-              value: "ai_db"
+              value: "postgres"  # 🟢 CHANGED: Must be 'postgres' for Supabase
             - name: POSTGRES_USER
               valueFrom:
-                configMapKeyRef:
-                  name: dineflow-config
-                  key: POSTGRES_USER
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_USER   # 🟢 CHANGED: Pull from Secret for consistency
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -183,10 +183,10 @@ spec:
                   key: DB_HOST
             - name: POSTGRES_PORT
               valueFrom:
-                configMapKeyRef:
-                  name: dineflow-config
-                  key: POSTGRES_PORT
-
+                secretKeyRef:
+                  name: aws-credentials
+                  key: DB_PORT   # 🟢 CHANGED: Pull from Secret (guarantees port 6543)
+                  
             # --- Kafka ---
             - name: KAFKA_BOOTSTRAP_SERVERS
               valueFrom:

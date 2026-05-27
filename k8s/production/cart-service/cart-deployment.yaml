@@ -4,29 +4,24 @@ metadata:
   name: cart-service
   namespace: dineflow-production
 spec:
-  replicas: 1 # 🚀 Upgraded: High Availability (Runs 2 pods instead of 1)
-
+  replicas: 1 
   strategy:
     type: RollingUpdate
     rollingUpdate:
       maxSurge: 1
-      maxUnavailable: 0 # 🚀 Upgraded: Ensures zero downtime during GitHub Action deployments
-
+      maxUnavailable: 0 
   selector:
     matchLabels:
       app: cart-service
-
   template:
     metadata:
       labels:
         app: cart-service
-
     spec:
       initContainers:
         - name: init-cart-db
           image: postgres:15
           imagePullPolicy: IfNotPresent
-          # 🚀 Upgraded: Securely fetches RDS credentials instead of hardcoding 'postgres'
           env:
             - name: PGHOST
               valueFrom:
@@ -51,16 +46,12 @@ spec:
               until pg_isready -h $PGHOST -U $PGUSER; do
                 sleep 2
               done
-
       containers:
         - name: cart-service
-          # 🚀 Upgraded: Points to your secure AWS ECR repository
           image: 831411500771.dkr.ecr.ap-south-1.amazonaws.com/dineflow-cart:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
-
-          # 🚀 Upgraded: Resource limits prevent this pod from starving other microservices
           resources:
             requests:
               cpu: "250m"
@@ -68,30 +59,25 @@ spec:
             limits:
               cpu: "500m"
               memory: "1Gi"
-
           env:
             - name: K8S_ENV
               value: "true"
-
+            - name: SERVICE_NAME
+              value: "cart"
             - name: DJANGO_SETTINGS_MODULE
               value: cart_service.settings
-
-            # 🚀 Upgraded: Dynamically pulls Redis config
             - name: REDIS_HOST
               valueFrom:
                 configMapKeyRef:
                   name: dineflow-config
                   key: REDIS_HOST
-
             - name: REDIS_PORT
               valueFrom:
                 configMapKeyRef:
                   name: dineflow-config
                   key: REDIS_PORT
-
-            # 🚀 Upgraded: Database configured for the isolated 'cart_db' on RDS
             - name: DB_NAME
-              value: cart_db 
+              value: "postgres" 
             - name: DB_USER
               valueFrom:
                 configMapKeyRef:
@@ -112,11 +98,8 @@ spec:
                 configMapKeyRef:
                   name: dineflow-config
                   key: POSTGRES_PORT
-
-            # 🚀 Upgraded: Internal DNS points to the production namespace
             - name: MENU_SERVICE_URL
               value: http://menu-service.dineflow-production.svc.cluster.local:8000
-
           readinessProbe:
             httpGet:
               path: /health/
@@ -124,7 +107,6 @@ spec:
             initialDelaySeconds: 15
             periodSeconds: 10
             failureThreshold: 3
-
           livenessProbe:
             httpGet:
               path: /health/
@@ -132,12 +114,13 @@ spec:
             initialDelaySeconds: 45
             periodSeconds: 15
             failureThreshold: 3
+
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: cart-service
-  namespace: dineflow-production # 🚀 Upgraded namespace
+  namespace: dineflow-production 
 spec:
   selector:
     app: cart-service
@@ -146,19 +129,16 @@ spec:
       port: 8000
       targetPort: 8000
   type: ClusterIP
+
 ---
-# 🚀 ADDED: Production-Ready Cart Menu Kafka Consumer
-
-
-
-
+# 🚀 Production-Ready Cart Menu Kafka Consumer
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: cart-menu-consumer
   namespace: dineflow-production
 spec:
-  replicas: 1 # Consumers usually scale based on lag, 1 is perfect to start
+  replicas: 1 
   selector:
     matchLabels:
       app: cart-menu-consumer
@@ -170,34 +150,29 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: consumer
-          # 🚀 Upgraded: Points to the ECR Image
           image: 831411500771.dkr.ecr.ap-south-1.amazonaws.com/dineflow-cart:latest
           imagePullPolicy: Always
           command:
             - python
             - manage.py
             - consume_menu_events
-
           env:
             - name: K8S_ENV
               value: "true"
-
-            # 🚀 Upgraded: Dynamically pulls the Redpanda broker URL
+            - name: SERVICE_NAME
+              value: "cart"
             - name: KAFKA_BOOTSTRAP_SERVERS
               valueFrom:
                 configMapKeyRef:
                   name: dineflow-config
                   key: KAFKA_BOOTSTRAP_SERVERS
-
-            # 🚀 Upgraded: Database configured securely for 'cart_db' on RDS
             - name: DB_NAME
-              value: cart_db 
+              value: "postgres" 
             - name: DB_USER
               valueFrom:
                 configMapKeyRef:
                   name: dineflow-config
                   key: POSTGRES_USER
-
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -213,8 +188,6 @@ spec:
                 configMapKeyRef:
                   name: dineflow-config
                   key: POSTGRES_PORT
-
-            # 🚀 Upgraded: Dynamically pulls Redis config
             - name: REDIS_HOST
               valueFrom:
                 configMapKeyRef:
@@ -225,7 +198,6 @@ spec:
                 configMapKeyRef:
                   name: dineflow-config
                   key: REDIS_PORT
-
           resources:
             requests:
               cpu: "100m"

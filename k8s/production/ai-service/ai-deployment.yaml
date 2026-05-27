@@ -8,8 +8,6 @@ metadata:
   namespace: dineflow-production
 spec:
   replicas: 1
-  # 🚀 ADDED FIX: Tell Kubernetes to kill the old pod BEFORE starting the new one.
-  # This breaks the memory deadlock on small nodes.
   strategy:
     type: Recreate
   selector:
@@ -21,7 +19,6 @@ spec:
         app: ai-kafka-consumer
     spec:
       terminationGracePeriodSeconds: 30
-      
       nodeSelector:
         workload-type: "ai-heavy"
       tolerations:
@@ -29,7 +26,6 @@ spec:
         operator: "Equal"
         value: "ai-heavy"
         effect: "NoSchedule"
-
       containers:
         - name: consumer
           image: 831411500771.dkr.ecr.ap-south-1.amazonaws.com/dineflow-ai:latest
@@ -38,18 +34,16 @@ spec:
             - python
             - -c
             - "from app.kafka.menu_consumer import consume_events; consume_events()"
-
           env:
-            # --- Kafka ---
+            - name: SERVICE_NAME
+              value: "ai"
             - name: KAFKA_BOOTSTRAP_SERVERS
               valueFrom:
                 configMapKeyRef:
                   name: dineflow-config
                   key: KAFKA_BOOTSTRAP_SERVERS
-
-            # --- Postgres (Points to RDS) ---
             - name: POSTGRES_DB
-              value: "ai_db" 
+              value: "postgres" 
             - name: POSTGRES_USER
               valueFrom:
                 configMapKeyRef:
@@ -70,8 +64,6 @@ spec:
                 configMapKeyRef:
                   name: dineflow-config
                   key: POSTGRES_PORT
-
-            # --- Redis (Points to ElastiCache) ---
             - name: REDIS_HOST
               valueFrom:
                 configMapKeyRef:
@@ -82,14 +74,11 @@ spec:
                 configMapKeyRef:
                   name: dineflow-config
                   key: REDIS_PORT
-
-            # --- API Keys ---
             - name: GROQ_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: groq-credentials
                   key: GROQ_API_KEY
-
           resources:
             requests:
               cpu: "100m"
@@ -109,8 +98,6 @@ metadata:
   namespace: dineflow-production 
 spec:
   replicas: 1
-  # 🚀 UPDATED FIX: Changed to Recreate to prevent memory deadlock during deployments
-  # just like the kafka consumer above.
   strategy:
     type: Recreate
   selector:
@@ -128,14 +115,12 @@ spec:
         operator: "Equal"
         value: "ai-heavy"
         effect: "NoSchedule"
-        
       containers:
         - name: ai-service
           image: 831411500771.dkr.ecr.ap-south-1.amazonaws.com/dineflow-ai:latest
           imagePullPolicy: Always 
           ports:
             - containerPort: 8001
-
           resources:
             requests:
               memory: "1Gi"
@@ -143,20 +128,17 @@ spec:
             limits:
               memory: "1.5Gi"
               cpu: "2000m"
-
           env:
             - name: K8S_ENV
               value: "true"
-
-            # 🌐 --- Internal Microservice URLs (Production Namespace) ---
+            - name: SERVICE_NAME
+              value: "ai"
             - name: CART_SERVICE_URL
               value: "http://cart-service.dineflow-production.svc.cluster.local:8000"
             - name: ORDERS_SERVICE_URL
               value: "http://order-service.dineflow-production.svc.cluster.local:8000"
             - name: MENU_SERVICE_URL
               value: "http://menu-service.dineflow-production.svc.cluster.local:8000"
-
-            # --- Redis ---
             - name: REDIS_HOST
               valueFrom:
                 configMapKeyRef:
@@ -167,10 +149,8 @@ spec:
                 configMapKeyRef:
                   name: dineflow-config
                   key: REDIS_PORT
-
-            # --- Postgres (Points to RDS) ---
             - name: POSTGRES_DB
-              value: "ai_db"
+              value: "postgres"
             - name: POSTGRES_USER
               valueFrom:
                 configMapKeyRef:
@@ -191,15 +171,11 @@ spec:
                 configMapKeyRef:
                   name: dineflow-config
                   key: POSTGRES_PORT
-
-            # --- Kafka ---
             - name: KAFKA_BOOTSTRAP_SERVERS
               valueFrom:
                 configMapKeyRef:
                   name: dineflow-config
                   key: KAFKA_BOOTSTRAP_SERVERS
-
-            # --- Email / SMTP ---
             - name: SMTP_SERVER
               value: "smtp.gmail.com"
             - name: SMTP_PORT
@@ -214,8 +190,6 @@ spec:
                 secretKeyRef:
                   name: smtp-credentials
                   key: SMTP_PASSWORD
-
-            # --- API Keys ---
             - name: GEMINI_API_KEY
               valueFrom:
                 secretKeyRef:
@@ -231,8 +205,6 @@ spec:
                 secretKeyRef:
                   name: hf-credentials
                   key: HF_TOKEN
-
-            # --- AWS ---
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
@@ -248,7 +220,6 @@ spec:
                 secretKeyRef:         
                   name: aws-credentials
                   key: AWS_DEFAULT_REGION
-
           readinessProbe:
             httpGet:
               path: /health/
@@ -257,7 +228,6 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
-
           livenessProbe:
             httpGet:
               path: /health/

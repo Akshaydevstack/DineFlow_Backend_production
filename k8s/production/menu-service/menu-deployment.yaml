@@ -2,31 +2,26 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: menu-service
-  namespace: dineflow-production # 🚀 Upgraded namespace
+  namespace: dineflow-production 
 spec:
-  replicas: 1 # 🚀 Upgraded: High Availability
-
+  replicas: 1 
   strategy:
     type: RollingUpdate
     rollingUpdate:
       maxSurge: 1
-      maxUnavailable: 0 # 🚀 Upgraded: Zero downtime deployments
-
+      maxUnavailable: 0 
   selector:
     matchLabels:
       app: menu-service
-
   template:
     metadata:
       labels:
         app: menu-service
-
     spec:
       initContainers:
         - name: init-menu-db
           image: postgres:15
           imagePullPolicy: IfNotPresent
-          # 🚀 Upgraded: Securely fetches RDS credentials
           env:
             - name: PGHOST
               valueFrom:
@@ -51,16 +46,12 @@ spec:
               until pg_isready -h $PGHOST -U $PGUSER; do
                 sleep 2
               done
-
       containers:
         - name: menu-service
-          # 🚀 Upgraded: Points to your secure AWS ECR repository
           image: 831411500771.dkr.ecr.ap-south-1.amazonaws.com/dineflow-menu:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
-
-          # 🚀 Upgraded: Production resource limits prevent cluster starvation
           resources:
             requests:
               cpu: "250m"
@@ -68,19 +59,18 @@ spec:
             limits:
               cpu: "500m"
               memory: "1Gi"
-
           env:
             - name: K8S_ENV
               value: "true"
-            # --- ADD THIS KAFKA BLOCK ---
+            - name: SERVICE_NAME
+              value: "menu"
             - name: KAFKA_BOOTSTRAP_SERVERS
               valueFrom:
                 configMapKeyRef:
                   name: dineflow-config
                   key: KAFKA_BOOTSTRAP_SERVERS
-            # 🚀 Upgraded: Database configured for the isolated 'menu_db'
             - name: DB_NAME
-              value: "menu_db"
+              value: "postgres"
             - name: DB_USER
               valueFrom:
                 configMapKeyRef:
@@ -101,8 +91,6 @@ spec:
                 configMapKeyRef:
                   name: dineflow-config
                   key: POSTGRES_PORT
-
-            # 🚀 Upgraded: Dynamically pulls Redis config
             - name: REDIS_HOST
               valueFrom:
                 configMapKeyRef:
@@ -113,7 +101,6 @@ spec:
                 configMapKeyRef:
                   name: dineflow-config
                   key: REDIS_PORT
-
           readinessProbe:
             httpGet:
               path: /health/
@@ -121,7 +108,6 @@ spec:
             initialDelaySeconds: 15
             periodSeconds: 10
             failureThreshold: 3
-
           livenessProbe:
             httpGet:
               path: /health/
@@ -129,12 +115,13 @@ spec:
             initialDelaySeconds: 45
             periodSeconds: 15
             failureThreshold: 3
+
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: menu-service
-  namespace: dineflow-production # 🚀 Upgraded namespace
+  namespace: dineflow-production 
 spec:
   selector:
     app: menu-service

@@ -8,6 +8,6 @@ data:
   REDIS_HOST: "redis" 
   REDIS_PORT: "6379"
   POSTGRES_DB: "postgres"
-  POSTGRES_USER: "postgres.baydkqdlezhtuisdebvp"
+  POSTGRES_USER: "postgres.bqivqoqcgpcsovfcentc"
   POSTGRES_PORT: "6543"
   AWS_DEFAULT_REGION: "ap-south-1"

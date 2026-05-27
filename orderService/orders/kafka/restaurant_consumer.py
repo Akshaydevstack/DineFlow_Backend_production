@@ -1,8 +1,10 @@
+import os
 import json
 import logging
 import re
 import signal
 from dateutil import parser
+from contextlib import contextmanager
 
 from confluent_kafka import Consumer
 from django.conf import settings
@@ -21,7 +23,10 @@ CONSUMER_NAME = "order-restaurant-consumer"
 DLQ_TOPIC = "order.restaurant.dlq"
 
 VALID_TOPICS = ["restaurant.created", "restaurant.updated"]
-TENANT_REGEX = re.compile(r"^[a-z][a-z0-9_]+$")
+
+# 🟢 FIX 1: Standardized regex and dynamic service name
+TENANT_REGEX = re.compile(r"^rest_[a-z0-9]+$")
+SERVICE_NAME = os.getenv("SERVICE_NAME", "order")
 
 running = True
 
@@ -47,23 +52,27 @@ consumer = Consumer({
 
 consumer.subscribe(VALID_TOPICS)
 
+
 # --------------------------------------------------
-# Tenant schema helpers
+# Tenant schema helper (Supabase Pooler Safe)
 # --------------------------------------------------
-def _set_schema(restaurant_id: str):
+# 🟢 FIX 2: Replaced manual set/reset with the Context Manager
+@contextmanager
+def tenant_schema(restaurant_id: str):
     if not restaurant_id:
         raise ValueError("restaurant_id missing")
 
-    schema = restaurant_id.lower()
-    if not TENANT_REGEX.match(schema):
-        raise ValueError(f"Invalid schema: {schema}")
+    base_tenant = restaurant_id.lower()
+    if not TENANT_REGEX.match(base_tenant):
+        raise ValueError(f"Invalid schema: {base_tenant}")
 
-    with connection.cursor() as cursor:
-        cursor.execute(f'SET search_path TO "{schema}", public')
+    target_schema = f"{SERVICE_NAME}_{base_tenant}"
 
-def _reset_schema():
-    with connection.cursor() as cursor:
-        cursor.execute("SET search_path TO public")
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            cursor.execute(f'SET LOCAL search_path TO "{target_schema}", public')
+        yield
+
 
 # --------------------------------------------------
 # Event processor (IDEMPOTENT UPSERT)
@@ -76,10 +85,8 @@ def process_event(event: dict):
     # Parse the timestamp
     updated_at_parsed = parser.parse(event["updated_at"])
 
-    # Switch to the correct tenant schema
-    _set_schema(restaurant_id)
-
-    try:
+    # 🟢 FIX 3: Apply the context manager to safely lock the schema
+    with tenant_schema(restaurant_id):
         with transaction.atomic():
             
             # --------------------------------------------------
@@ -111,9 +118,6 @@ def process_event(event: dict):
                 f"🏪 Restaurant replica upserted | restaurant={restaurant_id}"
             )
 
-    finally:
-        # Always revert to public schema
-        _reset_schema()
 
 # --------------------------------------------------
 # Main consumer loop

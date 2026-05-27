@@ -1,7 +1,9 @@
+import os
 import json
 import logging
 import re
 import signal
+from contextlib import contextmanager
 
 from confluent_kafka import Consumer
 from django.conf import settings
@@ -18,9 +20,11 @@ logger = logging.getLogger(__name__)
 # --------------------------------------------------
 CONSUMER_NAME = "order-table-consumer"
 DLQ_TOPIC = "order.table.dlq"
-TENANT_REGEX = re.compile(r"^[a-z][a-z0-9_]+$")
-
 VALID_TOPIC = "restaurant.table.upsert"
+
+# 🟢 FIX 1: Standardized regex and dynamic service name
+TENANT_REGEX = re.compile(r"^rest_[a-z0-9]+$")
+SERVICE_NAME = os.getenv("SERVICE_NAME", "order")
 
 running = True
 
@@ -51,24 +55,24 @@ consumer.subscribe([VALID_TOPIC])
 
 
 # --------------------------------------------------
-# Tenant schema helpers
+# Tenant schema helper (Supabase Pooler Safe)
 # --------------------------------------------------
-def _set_schema(restaurant_id: str):
+# 🟢 FIX 2: Replaced manual set/reset with the Context Manager
+@contextmanager
+def tenant_schema(restaurant_id: str):
     if not restaurant_id:
         raise ValueError("restaurant_id missing")
 
-    schema = restaurant_id.lower()
+    base_tenant = restaurant_id.lower()
+    if not TENANT_REGEX.match(base_tenant):
+        raise ValueError(f"Invalid schema: {base_tenant}")
 
-    if not TENANT_REGEX.match(schema):
-        raise ValueError(f"Invalid schema: {schema}")
+    target_schema = f"{SERVICE_NAME}_{base_tenant}"
 
-    with connection.cursor() as cursor:
-        cursor.execute(f'SET search_path TO "{schema}", public')
-
-
-def _reset_schema():
-    with connection.cursor() as cursor:
-        cursor.execute("SET search_path TO public")
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            cursor.execute(f'SET LOCAL search_path TO "{target_schema}", public')
+        yield
 
 
 # --------------------------------------------------
@@ -86,9 +90,8 @@ def process_event(event: dict):
 
     incoming_version = int(event["version"].lstrip("v"))
 
-    _set_schema(restaurant_id)
-
-    try:
+    # 🟢 FIX 3: Apply the context manager safely
+    with tenant_schema(restaurant_id):
         with transaction.atomic():
 
             existing = TableSnapshot.objects.filter(
@@ -132,9 +135,6 @@ def process_event(event: dict):
             logger.info(
                 f"🪑 Table snapshot upserted | table={table_id} | restaurant={restaurant_id} | v{incoming_version}"
             )
-
-    finally:
-        _reset_schema()
 
 
 # --------------------------------------------------

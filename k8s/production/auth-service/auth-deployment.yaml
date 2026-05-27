@@ -27,7 +27,6 @@ spec:
           imagePullPolicy: Always 
           ports:
             - containerPort: 8000
-
           resources:
             requests:
               cpu: "100m"
@@ -35,12 +34,11 @@ spec:
             limits:
               cpu: "500m"
               memory: "512Mi"
-
           env:
             - name: K8S_ENV
               value: "true"
-              
-            # 🌐 --- Internal Microservice Provisioning URLs (Production Namespace) ---
+            - name: SERVICE_NAME
+              value: "auth"
             - name: ORDER_SERVICE_TENANT_PROVISION_URL
               value: "http://order-service.dineflow-production.svc.cluster.local:8000/internal/tenants/provision"
             - name: MENU_SERVICE_TENANT_PROVISION_URL
@@ -51,48 +49,37 @@ spec:
               value: "http://kitchen-service.dineflow-production.svc.cluster.local:8000/internal/tenants/provision"
             - name: NOTIFICATION_SERVICE_TENANT_PROVISION_URL
               value: "http://notification-service.dineflow-production.svc.cluster.local:8000/internal/tenants/provision"
-
-            # --- Kafka ---
             - name: KAFKA_BOOTSTRAP_SERVERS
               valueFrom:
                 configMapKeyRef:
                   name: dineflow-config
                   key: KAFKA_BOOTSTRAP_SERVERS
-
-            # --- Redis ---
             - name: REDIS_HOST
               valueFrom:
                 configMapKeyRef:
                   name: dineflow-config
                   key: REDIS_HOST
-
             - name: REDIS_PORT
               valueFrom:
                 configMapKeyRef:
                   name: dineflow-config
                   key: REDIS_PORT
-            
-            # --- Email / SMTP ---
             - name: SMTP_SERVER
               value: "smtp.gmail.com"
             - name: SMTP_PORT
               value: "587"
-
             - name: SMTP_USERNAME
               valueFrom:
                 secretKeyRef:
                   name: smtp-credentials
                   key: SMTP_USER
-
             - name: SMTP_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: smtp-credentials
                   key: SMTP_PASSWORD
-            
-            # --- Postgres (Points to RDS) ---
             - name: DB_NAME
-              value: "auth_db" 
+              value: "postgres" 
             - name: DB_USER
               valueFrom:
                 configMapKeyRef:
@@ -113,11 +100,8 @@ spec:
                 configMapKeyRef:
                   name: dineflow-config
                   key: POSTGRES_PORT
-
-            # --- Firebase ---
             - name: GOOGLE_APPLICATION_CREDENTIALS
               value: "/etc/secrets/firebase/firebase-credentials.json"
-
           volumeMounts:
             - name: jwt-keys-volume
               mountPath: /app/jwt_keys
@@ -125,21 +109,18 @@ spec:
             - name: firebase-secret-volume
               mountPath: /etc/secrets/firebase
               readOnly: true
-
           readinessProbe:
             httpGet:
               path: /health/
               port: 8000
             initialDelaySeconds: 10
             periodSeconds: 5
-
           livenessProbe:
             httpGet:
               path: /health/
               port: 8000
             initialDelaySeconds: 30
             periodSeconds: 10
-
       volumes:
         - name: jwt-keys-volume
           secret:
@@ -165,7 +146,6 @@ spec:
       targetPort: 8000
 
 ---
-
 # ==========================================
 # 3. Auth Table Session Consumer Deployment
 # ==========================================
@@ -192,8 +172,6 @@ spec:
             - python
             - manage.py
             - consume_table_session_events
-            
-          # 👇 AND ADDED THIS BLOCK HERE
           resources:
             requests:
               cpu: "100m"
@@ -201,14 +179,13 @@ spec:
             limits:
               cpu: "500m"
               memory: "512Mi"
-
           env:
             - name: K8S_ENV
               value: "true"
-
-            # --- Postgres (Points to RDS) ---
+            - name: SERVICE_NAME
+              value: "auth"
             - name: DB_NAME
-              value: "auth_db"
+              value: "postgres"
             - name: DB_USER
               valueFrom:
                 configMapKeyRef:
@@ -229,23 +206,17 @@ spec:
                 configMapKeyRef:
                   name: dineflow-config
                   key: POSTGRES_PORT
-
-            # --- Kafka ---
             - name: KAFKA_BOOTSTRAP_SERVERS
               valueFrom:
                 configMapKeyRef:
                   name: dineflow-config
                   key: KAFKA_BOOTSTRAP_SERVERS
-                  
-            # --- Firebase (Added) ---
             - name: GOOGLE_APPLICATION_CREDENTIALS
               value: "/etc/secrets/firebase/firebase-credentials.json"
-
           volumeMounts:
             - name: firebase-secret-volume
               mountPath: /etc/secrets/firebase
               readOnly: true
-
       volumes:
         - name: firebase-secret-volume
           secret:

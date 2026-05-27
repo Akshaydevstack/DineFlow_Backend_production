@@ -11,17 +11,20 @@ from loguru import logger
 # ---------------------------------------------------
 
 try:
-    # ⚡ FIXED: Calling pool directly!
+    # ⚡ FIXED: Calling pool directly with schema isolation!
     db_pool = pool.ThreadedConnectionPool(
         minconn=1,
         maxconn=20, # Handles up to 20 concurrent AI requests instantly
         host=os.getenv("POSTGRES_HOST", "localhost"),
         port=os.getenv("POSTGRES_PORT", 5432),
-        dbname=os.getenv("POSTGRES_DB", "ai_db"),        
+        dbname=os.getenv("POSTGRES_DB", "postgres"), # Use the main database name
         user=os.getenv("POSTGRES_USER", "postgres"),
         password=os.getenv("POSTGRES_PASSWORD", "postgres"),
+        
+        # 🛡️ THE FIX: Forces every connection in this pool to use the ai_service schema
+        options="-c search_path=ai_service,extensions,public"
     )
-    logger.info("✅ Database Connection Pool Created")
+    logger.info("✅ Database Connection Pool Created (Schema: ai_service)")
 except Exception as e:
     logger.error(f"Failed to create DB pool: {e}")
     db_pool = None
@@ -43,19 +46,30 @@ def get_db_connection():
 # Setup Tables (run once)
 # ---------------------------------------------------
 
+# ---------------------------------------------------
+# Setup Tables (run once)
+# ---------------------------------------------------
+
 def setup_vector_tables():
     """
-    Creates pgvector extension + tables if they don't exist.
-    Run once on app startup.
+    Creates the isolated schema, the pgvector extension (in public), 
+    and the tables strictly inside the ai_service schema.
     """
     with get_db_connection() as conn:
         with conn.cursor() as cur:
-            # Enable pgvector extension
-            cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+            # 1. Ensure the isolated schema exists
+            cur.execute("CREATE SCHEMA IF NOT EXISTS ai_service;")
+
+            # 2. Enable pgvector extension globally (must be in public)
+            cur.execute("CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public;")
+
+            # ---------------------------------------------------
+            # EXPLICITLY target ai_service for all table creations
+            # ---------------------------------------------------
 
             # Table 1: Menu items
             cur.execute("""
-                CREATE TABLE IF NOT EXISTS menu_embeddings (
+                CREATE TABLE IF NOT EXISTS ai_service.menu_embeddings (
                     id            SERIAL PRIMARY KEY,
                     dish_id       TEXT NOT NULL,
                     restaurant_id TEXT NOT NULL,
@@ -63,21 +77,20 @@ def setup_vector_tables():
                     embedding     vector(384),
                     metadata      JSONB DEFAULT '{}',
 
-                    -- unique constraint so upsert works correctly
                     UNIQUE (dish_id, restaurant_id)
                 );
             """)
 
             cur.execute("""
                 CREATE INDEX IF NOT EXISTS menu_embedding_idx
-                ON menu_embeddings
+                ON ai_service.menu_embeddings
                 USING ivfflat (embedding vector_cosine_ops)
                 WITH (lists = 100);
             """)
 
             # Table 2: Order history
             cur.execute("""
-                CREATE TABLE IF NOT EXISTS order_history_embeddings (
+                CREATE TABLE IF NOT EXISTS ai_service.order_history_embeddings (
                     id            SERIAL PRIMARY KEY,
                     user_id       TEXT NOT NULL,
                     restaurant_id TEXT NOT NULL,
@@ -89,14 +102,14 @@ def setup_vector_tables():
 
             cur.execute("""
                 CREATE INDEX IF NOT EXISTS order_history_embedding_idx
-                ON order_history_embeddings
+                ON ai_service.order_history_embeddings
                 USING ivfflat (embedding vector_cosine_ops)
                 WITH (lists = 100);
             """)
 
             # Table 3: Restaurant Profiles
             cur.execute("""
-                CREATE TABLE IF NOT EXISTS restaurant_embeddings (
+                CREATE TABLE IF NOT EXISTS ai_service.restaurant_embeddings (
                     id            SERIAL PRIMARY KEY,
                     public_id     TEXT UNIQUE NOT NULL,
                     content       TEXT NOT NULL,
@@ -107,14 +120,14 @@ def setup_vector_tables():
 
             cur.execute("""
                 CREATE INDEX IF NOT EXISTS restaurant_embedding_idx
-                ON restaurant_embeddings
+                ON ai_service.restaurant_embeddings
                 USING ivfflat (embedding vector_cosine_ops)
                 WITH (lists = 100);
             """)
 
             # Table 4: Table & Zone Profiles
             cur.execute("""
-                CREATE TABLE IF NOT EXISTS table_embeddings (
+                CREATE TABLE IF NOT EXISTS ai_service.table_embeddings (
                     id            SERIAL PRIMARY KEY,
                     public_id     TEXT UNIQUE NOT NULL,
                     restaurant_id TEXT NOT NULL,
@@ -126,14 +139,14 @@ def setup_vector_tables():
 
             cur.execute("""
                 CREATE INDEX IF NOT EXISTS table_embedding_idx
-                ON table_embeddings
+                ON ai_service.table_embeddings
                 USING ivfflat (embedding vector_cosine_ops)
                 WITH (lists = 100);
             """)
 
              # Table 5: user data
             cur.execute("""
-                CREATE TABLE IF NOT EXISTS user_embeddings (
+                CREATE TABLE IF NOT EXISTS ai_service.user_embeddings (
                     id            SERIAL PRIMARY KEY,
                     user_id       TEXT UNIQUE NOT NULL,
                     content       TEXT NOT NULL,
@@ -144,13 +157,13 @@ def setup_vector_tables():
 
             cur.execute("""
                 CREATE INDEX IF NOT EXISTS user_embedding_idx
-                ON user_embeddings
+                ON ai_service.user_embeddings
                 USING ivfflat (embedding vector_cosine_ops)
                 WITH (lists = 100);
             """)
 
             conn.commit()
-    print("✅ Vector tables ready!")
+    print("✅ Vector tables successfully isolated in ai_service schema!")
     
 
 # ---------------------------------------------------

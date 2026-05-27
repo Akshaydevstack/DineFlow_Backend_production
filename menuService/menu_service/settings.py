@@ -39,8 +39,6 @@ if os.getenv("K8S_ENV") == "true":
 
 # Application definition
 INSTALLED_APPS = [
-    "django.contrib.auth",
-    "django.contrib.contenttypes",
     "rest_framework",
     "django_filters",
     "drf_spectacular",
@@ -124,8 +122,12 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
 REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework_simplejwt.authentication.JWTAuthentication"],
+    # 🟢 FIX: Set this to an empty list. NGINX handles auth, so DRF doesn't need to.
+    "DEFAULT_AUTHENTICATION_CLASSES": [], 
+    
+    # You can also set this to AllowAny since the Gateway acts as your bouncer
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
+    
     "UNAUTHENTICATED_USER": None,
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",

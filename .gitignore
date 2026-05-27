@@ -42,6 +42,7 @@
 .idea/
 *.swp
 
+
 # 8. Logs & Docker
 **/*.log
 **/*.pid
@@ -54,6 +55,7 @@
 *.tfstate.*
 .terraform.lock.hcl
 dineflow-infrastructure/
+dev-setup
 
 
 # scripts (Recommended)

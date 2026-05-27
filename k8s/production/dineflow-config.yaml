@@ -7,6 +7,7 @@ data:
   KAFKA_BOOTSTRAP_SERVERS: "redpanda.dineflow-production.svc.cluster.local:9092"
   REDIS_HOST: "dineflow-redis.xggdgp.0001.aps1.cache.amazonaws.com" 
   REDIS_PORT: "6379"
-  POSTGRES_USER: "dineflow_admin"
-  POSTGRES_PORT: "5432"
   AWS_DEFAULT_REGION: "ap-south-1"
+
+  POSTGRES_PORT: "6543" 
+  POSTGRES_USER: "postgres.bqivqoqcgpcsovfcentc"
