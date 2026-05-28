@@ -4,7 +4,6 @@ import logging
 import re
 import signal
 from dateutil import parser
-from contextlib import contextmanager
 
 from confluent_kafka import Consumer
 from django.conf import settings
@@ -24,7 +23,6 @@ DLQ_TOPIC = "order.restaurant.dlq"
 
 VALID_TOPICS = ["restaurant.created", "restaurant.updated"]
 
-# 🟢 FIX 1: Standardized regex and dynamic service name
 TENANT_REGEX = re.compile(r"^rest_[a-z0-9]+$")
 SERVICE_NAME = os.getenv("SERVICE_NAME", "order")
 
@@ -54,11 +52,9 @@ consumer.subscribe(VALID_TOPICS)
 
 
 # --------------------------------------------------
-# Tenant schema helper (Supabase Pooler Safe)
+# Tenant schema helpers
 # --------------------------------------------------
-# 🟢 FIX 2: Replaced manual set/reset with the Context Manager
-@contextmanager
-def tenant_schema(restaurant_id: str):
+def _set_schema(restaurant_id: str):
     if not restaurant_id:
         raise ValueError("restaurant_id missing")
 
@@ -68,10 +64,15 @@ def tenant_schema(restaurant_id: str):
 
     target_schema = f"{SERVICE_NAME}_{base_tenant}"
 
-    with transaction.atomic():
-        with connection.cursor() as cursor:
-            cursor.execute(f'SET LOCAL search_path TO "{target_schema}", public')
-        yield
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f'SET search_path TO "{target_schema}", public'
+        )
+
+
+def _reset_schema():
+    with connection.cursor() as cursor:
+        cursor.execute("SET search_path TO public")
 
 
 # --------------------------------------------------
@@ -85,8 +86,9 @@ def process_event(event: dict):
     # Parse the timestamp
     updated_at_parsed = parser.parse(event["updated_at"])
 
-    # 🟢 FIX 3: Apply the context manager to safely lock the schema
-    with tenant_schema(restaurant_id):
+    _set_schema(restaurant_id)
+
+    try:
         with transaction.atomic():
             
             # --------------------------------------------------
@@ -117,6 +119,9 @@ def process_event(event: dict):
             logger.info(
                 f"🏪 Restaurant replica upserted | restaurant={restaurant_id}"
             )
+            
+    finally:
+        _reset_schema()
 
 
 # --------------------------------------------------

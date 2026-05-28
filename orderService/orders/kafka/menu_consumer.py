@@ -4,7 +4,6 @@ import logging
 import re
 import signal
 from decimal import Decimal
-from contextlib import contextmanager
 
 from confluent_kafka import Consumer
 from django.conf import settings
@@ -22,7 +21,6 @@ logger = logging.getLogger(__name__)
 CONSUMER_NAME = "order-menu-consumer"
 DLQ_TOPIC = "order.menu.dlq"
 
-# 🟢 FIX 1: Standardized regex and dynamic service name
 TENANT_REGEX = re.compile(r"^rest_[a-z0-9]+$")
 SERVICE_NAME = os.getenv("SERVICE_NAME", "order")
 
@@ -58,16 +56,9 @@ consumer.subscribe(list(VALID_TOPICS))
 
 
 # --------------------------------------------------
-# Tenant schema helper (Supabase Pooler Safe)
+# Tenant schema helpers
 # --------------------------------------------------
-
-# 🟢 FIX 2: Replaced manual set/reset with the Context Manager
-@contextmanager
-def tenant_schema(restaurant_id: str):
-    """
-    Safely switches to a tenant's schema using a transaction-bound SET LOCAL.
-    Automatically reverts to the public schema when the block exits.
-    """
+def _set_schema(restaurant_id: str):
     if not restaurant_id:
         raise ValueError("restaurant_id missing")
 
@@ -77,17 +68,20 @@ def tenant_schema(restaurant_id: str):
 
     target_schema = f"{SERVICE_NAME}_{base_tenant}"
 
-    with transaction.atomic():
-        with connection.cursor() as cursor:
-            # SET LOCAL guarantees this search path ONLY exists for this transaction
-            cursor.execute(f'SET LOCAL search_path TO "{target_schema}", public')
-        yield
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f'SET search_path TO "{target_schema}", public'
+        )
+
+
+def _reset_schema():
+    with connection.cursor() as cursor:
+        cursor.execute("SET search_path TO public")
 
 
 # --------------------------------------------------
 # Event processor (IDEMPOTENT + VERSIONED)
 # --------------------------------------------------
-
 def process_event(event: dict, topic: str):
     if topic not in VALID_TOPICS:
         raise ValueError(f"Unknown topic: {topic}")
@@ -100,9 +94,9 @@ def process_event(event: dict, topic: str):
 
     incoming_version = int(event["menu_version"].lstrip("v"))
 
-    # 🟢 FIX 3: Apply the context manager
-    with tenant_schema(restaurant_id):
-        # We wrap the update in an atomic block inside the isolated schema
+    _set_schema(restaurant_id)
+
+    try:
         with transaction.atomic():
 
             existing = MenuItemSnapshot.objects.filter(
@@ -183,6 +177,9 @@ def process_event(event: dict, topic: str):
                         "dish_id": dish_id,
                     },
                 )
+
+    finally:
+        _reset_schema()
 
 
 # --------------------------------------------------
