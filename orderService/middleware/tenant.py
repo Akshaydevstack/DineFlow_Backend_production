@@ -41,8 +41,9 @@ class TenantSchemaMiddleware:
 
         try:
             with connection.cursor() as cursor:
+                # Included the underscore delimiter between SERVICE_NAME and schema
                 cursor.execute(
-                    f'SET search_path TO "{SERVICE_NAME + schema}", public'
+                    f'SET search_path TO "{SERVICE_NAME}_{schema}", public'
                 )
 
             return self.get_response(request)
