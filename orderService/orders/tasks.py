@@ -1,5 +1,5 @@
 from celery import shared_task
-from django.db import connection, transaction
+from django.db import connections, DEFAULT_DB_ALIAS, transaction
 from django.utils import timezone
 from datetime import timedelta
 import logging
@@ -10,7 +10,6 @@ from orders.kafka.producer import publish_session_closed
 
 logger = logging.getLogger(__name__)
 
-# Identify this service context explicitly (defaults to 'order' for this task)
 SERVICE_NAME = os.getenv("SERVICE_NAME", "order").lower()
 
 
@@ -28,14 +27,16 @@ def close_idle_sessions(self):
     total_closed = 0
     schemas = []
 
+    # ✅ Force isolated connection lookup context
+    conn = connections[DEFAULT_DB_ALIAS]
+
     try:
-        # ----------------------------------
-        # Fetch ONLY schemas belonging to THIS service
-        # ----------------------------------
-        with connection.cursor() as cursor:
+        # Clear any stale connection state before starting
+        if hasattr(conn, 'close_if_unusable_or_obsolete'):
+            conn.close_if_unusable_or_obsolete()
+
+        with conn.cursor() as cursor:
             cursor.execute("SET search_path TO public")
-            
-            # Added a WHERE clause filter to isolate prefix paths (e.g., 'order_%')
             cursor.execute("""
                 SELECT schema_name
                 FROM information_schema.schemata
@@ -61,12 +62,12 @@ def close_idle_sessions(self):
     # ----------------------------------
     for schema in schemas:
         try:
-            with connection.cursor() as cursor:
-                cursor.execute(f'SET search_path TO "{schema}", public')
+            # ✅ Explicitly ensure the connection is fresh for this loop cycle
+            if hasattr(conn, 'close_if_unusable_or_obsolete'):
+                conn.close_if_unusable_or_obsolete()
 
-            # CRITICAL: Flush connection layer state cache to force Django to bind to the new search path completely
-            if hasattr(connection, 'close_if_unusable_or_obsolete'):
-                connection.close_if_unusable_or_obsolete()
+            with conn.cursor() as cursor:
+                cursor.execute(f'SET search_path TO "{schema}", public')
 
             # Execute lookup within the target tenant boundary safely
             idle_sessions = list(
@@ -91,7 +92,6 @@ def close_idle_sessions(self):
                         session.closed_at = now
                         session.save(update_fields=["status", "closed_at"])
 
-                        # Pin current instance scope context closure variables securely for Kafka dispatches
                         transaction.on_commit(
                             lambda s=session: publish_session_closed(s)
                         )
@@ -105,9 +105,9 @@ def close_idle_sessions(self):
         except Exception:
             logger.exception(f"❌ Critical failure running sequence execution loop | schema={schema}")
         finally:
-            # Revert connection references at the close of every evaluation cycle step
+            # Revert cleanly using the isolated connection object
             try:
-                with connection.cursor() as cursor:
+                with conn.cursor() as cursor:
                     cursor.execute("SET search_path TO public")
             except Exception:
                 logger.error(f"🚨 Failed tracking safe schema fallback step back to public boundary from schema={schema}")
