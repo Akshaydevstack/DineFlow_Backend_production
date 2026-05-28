@@ -12,7 +12,7 @@ from orders.redis.idempotency import (
     get_existing_order,
     store_idempotency_key,
 )
-from orders.kafka.producer import publish_order_cancelled, publish_session_started
+from orders.kafka.producer import publish_order_cancelled, publish_session_started 
 from utils.order_builder import build_order_response
 from rest_framework.views import APIView
 from rest_framework.response import Response
