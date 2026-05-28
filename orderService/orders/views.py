@@ -7,13 +7,12 @@ from django.db import transaction
 from decimal import Decimal
 from .models import Order, OrderItem, TableSession
 from orders.models import Order, OrderItem
-from orders.kafka.producer import publish_order_placed
 from common.tenant import get_tenant_context
 from orders.redis.idempotency import (
     get_existing_order,
     store_idempotency_key,
 )
-from orders.kafka.producer import publish_order_placed, publish_order_cancelled, publish_session_started
+from orders.kafka.producer import publish_order_cancelled, publish_session_started 
 from utils.order_builder import build_order_response
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -234,10 +233,6 @@ class OrderCreateView(APIView):
             OrderItem.objects.bulk_create(order_items)
 
             order.recalculate_totals()
-
-            transaction.on_commit(
-                lambda: publish_order_placed(order)
-            )
 
             store_idempotency_key(
                 user_id=user_id,
@@ -652,7 +647,9 @@ class AdminOrderStatusUpdateView(APIView):
             )
 
         try:
-            order.update_status(new_status)
+            # Added transaction block to safely execute on_commit hooks
+            with transaction.atomic():
+                order.update_status(new_status)
         except Exception as e:
             return Response(
                 {"detail": str(e)},
