@@ -2,7 +2,7 @@ from django.db import models
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 from utils.id_generator import generate_unique_id
-from orders.kafka.producer import publish_session_closed,publish_order_placed,publish_order_cancelled
+from orders.kafka.producer import publish_session_closed
 from decimal import Decimal
 from django.db import transaction
 
@@ -457,21 +457,14 @@ class Order(models.Model):
 
         if new_status == self.STATUS_ACCEPTED:
             self.accepted_at = timestamp
-            transaction.on_commit(
-                lambda: publish_order_placed(self)
-            )
         elif new_status == self.STATUS_PREPARING:
             self.preparing_at = timestamp
         elif new_status == self.STATUS_READY:
             self.ready_at = timestamp
         elif new_status == self.STATUS_CANCELLED:
             self.cancelled_at = timestamp
-            transaction.on_commit(
-                lambda: publish_order_cancelled(self)
-            )
         elif new_status == self.STATUS_COMPLETED:
             self.completed_at = timestamp
-
 
         self.save()
 
