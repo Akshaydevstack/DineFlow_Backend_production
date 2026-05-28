@@ -34,6 +34,8 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
     'rest_framework',
     'drf_spectacular',
     "channels",
@@ -85,7 +87,7 @@ DATABASES = {
         "CONN_MAX_AGE": 0,  # ← Must be 0 for Transaction Pooler
         "OPTIONS": {
             "sslmode": "require",
-            "options": "-c search_path=public",  # ← explicit schema
+            "options": "-c search_path=notification_rest_298bf97a",  # ← explicit schema
         },
     }
 }
