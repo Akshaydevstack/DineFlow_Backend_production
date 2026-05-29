@@ -9,5 +9,5 @@ data:
   REDIS_PORT: "6379"
   AWS_DEFAULT_REGION: "ap-south-1"
 
-  POSTGRES_PORT: "5432" 
+  POSTGRES_PORT: "6543" 
   POSTGRES_USER: "postgres.khujditoqxzvfgubdtll"
