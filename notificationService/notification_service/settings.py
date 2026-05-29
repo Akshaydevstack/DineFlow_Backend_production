@@ -231,13 +231,19 @@ REDIS_PORT = os.environ.get("REDIS_PORT", "6379")
 CELERY_BROKER_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/0"
 CELERY_RESULT_BACKEND = CELERY_BROKER_URL 
 
-# ✅ Update the CHANNEL_LAYERS to use the dynamic variables
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            # Note the format change: use f-strings or pass a tuple with int port
-            "hosts": [(REDIS_HOST, int(REDIS_PORT))], 
+            "hosts": [(REDIS_HOST, int(REDIS_PORT))],
+            "capacity": 1500,
+            "expiry": 10,
+            "connection_kwargs": {
+                "socket_connect_timeout": 5,
+                "socket_timeout": 5,
+                "retry_on_timeout": True,
+                "health_check_interval": 30,  # ✅ belongs here, not at top level
+            },
         },
     },
 }
