@@ -4,6 +4,8 @@ from django.db import connection
 from django.http import JsonResponse
 
 TENANT_REGEX = re.compile(r"^rest_[a-z0-9]+$")
+
+# Fetching service name from env
 SERVICE_NAME = os.getenv("SERVICE_NAME", "menu")
 
 
@@ -37,14 +39,15 @@ class TenantSchemaMiddleware:
                 status=400
             )
 
-        # ✅ Set schema directly on the connection before the request
-        target_schema = f"{SERVICE_NAME}_{schema}"
-        connection.connection  # ensure connection is open
-        
-        with connection.cursor() as cursor:
-            cursor.execute(
-                f"SET LOCAL search_path TO \"{target_schema}\", public"  # ✅ SET LOCAL instead of SET
-            )
+        try:
+            with connection.cursor() as cursor:
+                # Included the underscore delimiter between SERVICE_NAME and schema
+                cursor.execute(
+                    f'SET search_path TO "{SERVICE_NAME}_{schema}", public'
+                )
 
-        return self.get_response(request)
-        # ✅ No finally reset needed — SET LOCAL auto-resets after transaction ends
+            return self.get_response(request)
+
+        finally:
+            with connection.cursor() as cursor:
+                cursor.execute("SET search_path TO public")
