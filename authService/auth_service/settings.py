@@ -31,9 +31,8 @@ DEBUG = False
 ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
-    "https://dineflow.store",
-
-    # Kubernetes service DNS names
+    "dineflow.store",        
+    "*.dineflow.store",     
     "auth-service",
     "menu-service",
 ]
@@ -96,14 +95,15 @@ WSGI_APPLICATION = 'auth_service.wsgi.application'
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ.get("DB_NAME", "postgres"), # Read from env, fallback to postgres
+        "NAME": os.environ.get("DB_NAME", "postgres"),
         "USER": os.environ.get("DB_USER"),
         "PASSWORD": os.environ.get("DB_PASSWORD"),
-        "HOST": os.environ.get("DB_HOST"),             # FIXED: Was POSTGRES_HOST
-        "PORT": os.environ.get("DB_PORT", "6543"),     # FIXED: Was POSTGRES_PORT
+        "HOST": os.environ.get("DB_HOST"),
+        "PORT": os.environ.get("DB_PORT", "5432"),
+        "CONN_MAX_AGE": 60,                          # ✅ reuse connections
         "OPTIONS": {
-            # This isolates the microservice to its own schema
-            "options": "-c search_path=auth_service,public" 
+            "sslmode": "require",                    # ✅ Supabase requires SSL
+            "options": "-c search_path=auth_service,public"
         },
     }
 }
@@ -188,17 +188,17 @@ except FileNotFoundError:
 CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://localhost:5173",
+    "https://dineflow.store",    
 ]
-
 CORS_ALLOW_CREDENTIALS = True
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "https://dineflow.store",    
 ]
 
-# SESSION_COOKIE_DOMAIN = "127.0.0.1"
-# CSRF_COOKIE_DOMAIN = "127.0.0.1"
+
 
 SESSION_COOKIE_SAMESITE = "None"
 SESSION_COOKIE_SECURE = False
@@ -326,6 +326,13 @@ LOGGING = {
     },
     "root": {
         "handlers": ["console"],
-        "level": "INFO",
+        "level": "WARNING",    # ✅ INFO is too noisy in prod, use WARNING
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console"],
+            "level": "ERROR",  # ✅ only errors from Django internals
+            "propagate": False,
+        },
     },
 }
