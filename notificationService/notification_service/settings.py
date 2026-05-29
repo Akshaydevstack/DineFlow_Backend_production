@@ -221,23 +221,23 @@ CELERY_BEAT_SCHEDULE = {
     }
 }
 
-
 import os
 
 # Build the URL dynamically in Python
 REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
 REDIS_PORT = os.environ.get("REDIS_PORT", "6379")
 
-CELERY_BROKER_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/0"
+# 1. Update Celery to also use keepalives so workers don't drop offline
+CELERY_BROKER_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/0?health_check_interval=25&socket_keepalive=1"
 CELERY_RESULT_BACKEND = CELERY_BROKER_URL 
 
-# ✅ Update the CHANNEL_LAYERS to use the dynamic variables
+# 2. Update Channels to use the URL format with keepalives
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            # Note the format change: use f-strings or pass a tuple with int port
-            "hosts": [(REDIS_HOST, int(REDIS_PORT))], 
+            # Use the URL format to inject connection arguments
+            "hosts": [f"redis://{REDIS_HOST}:{REDIS_PORT}/0?health_check_interval=25&socket_keepalive=1"], 
         },
     },
 }
