@@ -221,28 +221,27 @@ CELERY_BEAT_SCHEDULE = {
     }
 }
 
-
 import os
 
-# Build the URL dynamically in Python
 REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
 REDIS_PORT = os.environ.get("REDIS_PORT", "6379")
 
 CELERY_BROKER_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/0"
-CELERY_RESULT_BACKEND = CELERY_BROKER_URL 
+CELERY_RESULT_BACKEND = CELERY_BROKER_URL
 
-# ✅ Update the CHANNEL_LAYERS to use the dynamic variables
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
             "hosts": [(REDIS_HOST, int(REDIS_PORT))],
-            "capacity": 1500,          # max messages queued per channel
-            "expiry": 10,              # messages expire after 10s if unread
-            "socket_connect_timeout": 5,   # ✅ fail fast if Redis unreachable
-            "socket_timeout": 5,           # ✅ don't hang on dead connection
-            "retry_on_timeout": True,      # ✅ auto retry on timeout
-            "health_check_interval": 30,   # ✅ ping every 30s — fixes your exact issue
+            "capacity": 1500,
+            "expiry": 10,
+            "health_check_interval": 30,
+            "connection_kwargs": {         # ✅ redis-py kwargs moved here
+                "socket_connect_timeout": 5,
+                "socket_timeout": 5,
+                "retry_on_timeout": True,
+            },
         },
     },
 }
