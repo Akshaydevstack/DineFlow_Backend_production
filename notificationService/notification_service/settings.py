@@ -34,6 +34,7 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    "daphne",
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'rest_framework',
@@ -187,7 +188,6 @@ This service trusts headers injected by the gateway.
 # Celery Configuration
 # -------------------------------------
 
-CELERY_BROKER_URL = "redis://redis:6379/0"
 
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
@@ -221,23 +221,24 @@ CELERY_BEAT_SCHEDULE = {
     }
 }
 
-import os
-
-# Build the URL dynamically in Python
 REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
 REDIS_PORT = os.environ.get("REDIS_PORT", "6379")
 
-# 1. Update Celery to also use keepalives so workers don't drop offline
-CELERY_BROKER_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/0?health_check_interval=25&socket_keepalive=1"
-CELERY_RESULT_BACKEND = CELERY_BROKER_URL 
+CELERY_BROKER_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/0"
+CELERY_RESULT_BACKEND = CELERY_BROKER_URL
 
-# 2. Update Channels to use the URL format with keepalives
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            # Use the URL format to inject connection arguments
-            "hosts": [f"redis://{REDIS_HOST}:{REDIS_PORT}/0?health_check_interval=25&socket_keepalive=1"], 
+            "hosts": [(REDIS_HOST, int(REDIS_PORT))],
+            "capacity": 1500,
+            "expiry": 10,
+            "connection_kwargs": {
+                "socket_connect_timeout": 5,
+                "socket_timeout": 5,
+                "retry_on_timeout": True,
+            },
         },
     },
 }
