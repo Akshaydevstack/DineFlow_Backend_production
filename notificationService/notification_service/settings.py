@@ -25,7 +25,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-(qv*f#ykox)_6q9z^33908phbr0dx-(n(y0zx*hh0@lh@bmz*v'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
 
 ALLOWED_HOSTS = []
@@ -231,19 +231,13 @@ REDIS_PORT = os.environ.get("REDIS_PORT", "6379")
 CELERY_BROKER_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/0"
 CELERY_RESULT_BACKEND = CELERY_BROKER_URL 
 
+# ✅ Update the CHANNEL_LAYERS to use the dynamic variables
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [(REDIS_HOST, int(REDIS_PORT))],
-            "capacity": 1500,
-            "expiry": 10,
-            "connection_kwargs": {
-                "socket_connect_timeout": 5,
-                "socket_timeout": 5,
-                "retry_on_timeout": True,
-                "health_check_interval": 30,  # ✅ belongs here, not at top level
-            },
+            # Note the format change: use f-strings or pass a tuple with int port
+            "hosts": [(REDIS_HOST, int(REDIS_PORT))], 
         },
     },
 }

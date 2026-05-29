@@ -68,7 +68,7 @@ TOPIC_TO_NOTIFICATION = {
     "kitchen.ticket.preparing": ("Order Preparing", "Your order is being prepared 🍳"),
     "kitchen.ticket.ready": ("Order Ready", "Your order is ready 🍽️"),
     "kitchen.ticket.cancelled": ("Order Cancelled", "Kitchen cancelled your order ❌"),
-    "kitchen.ticket.created": ("Kitchen ticket create", "Kitchen created a new ticket")
+     "kitchen.ticket.created" : ("Kitchen ticket create", "Kitchen created a new ticket")
 }
 
 
@@ -80,13 +80,11 @@ def process_event(event: dict, topic: str):
         logger.info("⏭️ Skipping unsupported topic", extra={"topic": topic})
         return
 
-    # Extract fields defensively
     restaurant_id = event.get("restaurant_id")
     user_id = event.get("user_id") or event.get("customer_id")
-    order_id = event.get("order_id")
 
     if not restaurant_id or not user_id:
-        raise ValueError(f"Missing required fields. user_id: {user_id}, restaurant_id: {restaurant_id}")
+        raise ValueError("restaurant_id or user_id missing")
 
     title, body = TOPIC_TO_NOTIFICATION[topic]
 
@@ -108,28 +106,27 @@ def process_event(event: dict, topic: str):
                 title=title,
                 body=body,
                 topic=topic,
-                reference_id=order_id,
+                reference_id=event.get("order_id"),
                 created_at=now(),
             )
 
-            # Queue FCM push ONLY after DB commit succeeds
-            transaction.on_commit(
-                lambda: send_push_notification_task.delay(
-                    user_id=user_id,
-                    restaurant_id=restaurant_id,
-                    title=title,
-                    body=body,
-                )
-            )
+        # Queue FCM push
+        send_push_notification_task.delay(
+            user_id=user_id,
+            restaurant_id=restaurant_id,
+            title=title,
+            body=body,
+        )
 
         logger.info(f"✅ Notification stored & queued {topic}")
 
     finally:
         reset_schema()
 
-    # -------------------------------------------------
-    # 🔴 Realtime WebSocket Push (Kitchen Display)
-    # -------------------------------------------------
+# -------------------------------------------------
+# 🔴 Realtime WebSocket Push (Kitchen Display)
+# -------------------------------------------------
+
     if topic in {
         "kitchen.ticket.created",
         "kitchen.ticket.cancelled",
@@ -161,7 +158,6 @@ def process_event(event: dict, topic: str):
                 },
             )
 
-
 # ----------------------------
 # Main consume loop
 # ----------------------------
@@ -188,7 +184,7 @@ def consume_notification_events():
                 consumer.commit(msg)
 
             except Exception as e:
-                # Forces the error into the console output
+                # ✅ String interpolation forces the error into the console output
                 logger.warning(
                     f"⚠️ Processing failed for topic {msg.topic()}: {str(e)}", 
                     extra={
@@ -203,13 +199,12 @@ def consume_notification_events():
                         topic=msg.topic(),
                         key=msg.key(),
                         value=msg.value(),
-                        # CRITICAL FIX: Encode headers as bytes
-                        headers={"retry_count": str(retry_count + 1).encode('utf-8')},
+                        headers={"retry_count": str(retry_count + 1)},
                     )
                     producer.poll(0)
 
                     logger.warning(
-                        f"🔁 Retrying message (Attempt {retry_count + 1})",
+                        "🔁 Retrying message",
                         extra={
                             "topic": msg.topic(),
                             "next_retry": retry_count + 1,

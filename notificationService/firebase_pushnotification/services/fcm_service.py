@@ -68,8 +68,6 @@ def send_push_notification_task(
 
 
 
-
-
 # Restaurent admin brodcaste message to all the user
 
 logger = logging.getLogger(__name__)
@@ -82,8 +80,6 @@ logger = logging.getLogger(__name__)
     retry_jitter=True,
     retry_kwargs={"max_retries": 3},
 )
-
-
 def send_restaurant_broadcast_notification_task(
     self,
     *,
