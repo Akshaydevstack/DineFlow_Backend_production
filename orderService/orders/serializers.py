@@ -178,6 +178,7 @@ class OrderItemReadSerializer(serializers.ModelSerializer):
         ]
 
 
+
 class OrderReadSerializer(serializers.ModelSerializer):
     items = OrderItemReadSerializer(many=True)
 
@@ -221,3 +222,5 @@ class TableSessionSerializer(serializers.ModelSerializer):
             "started_at",
             "last_activity_at"
         ]
+    
+

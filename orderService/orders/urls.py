@@ -18,7 +18,9 @@ from .views import (
     AdminTableSessionListView,
     CloseTableSessionView,
     WaiterTableCheckoutDetailView,
-    AIUserOrdersView
+    AIUserOrdersView,
+    WaiterOrderAcceptView,
+    WaiterOrderAcceptListView
     )
 
 urlpatterns = [
@@ -36,12 +38,21 @@ urlpatterns = [
     path("customer/<str:public_id>/cancel/", OrderCancelView.as_view(), name="cancel-order"),
     path("customer/<str:public_id>/", OrderDetailView.as_view(), name="order-detail"),
 
-    # ---------------- WAITER ----------------
+   # ---------------- WAITER ----------------
+    # 1. Static and explicit paths go FIRST
     path("waiter/create/", OrderCreateView.as_view(), name="waiter-create-order"),
     path("waiter/all-orders/", WaiterOrderListView.as_view(), name="waiter-get-all-orders"),
+    path("waiter/to-accept/", WaiterOrderAcceptListView.as_view(), name="waiter-orders-to-accept"),
+    
+    # 2. More specific dynamic paths go NEXT
+    path("waiter/table/<str:table_public_id>/checkout/", WaiterTableCheckoutDetailView.as_view()),
+    path("waiter/accept/<str:order_public_id>/", WaiterOrderAcceptView.as_view(), name="waiter-accept-order"),
     path("waiter/<str:public_id>/cancel/", OrderCancelView.as_view(), name="waiter-cancel-order"),
+    
+    # 3. The most generic dynamic path goes LAST
     path("waiter/<str:public_id>/", OrderDetailView.as_view(), name="waiter-order-detail"),
-    path("waiter/table/<str:table_public_id>/checkout/",WaiterTableCheckoutDetailView.as_view()),
+
+    
 
      # ---------------- Admin ----------------
     path("restaurant-admin/orders/", AdminOrderListView.as_view()),

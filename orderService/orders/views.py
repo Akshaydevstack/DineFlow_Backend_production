@@ -2,7 +2,7 @@ from django.db.models import Sum, Count
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .serializers import OrderCreateSerializer,TableSessionSerializer
+from .serializers import OrderCreateSerializer, TableSessionSerializer
 from django.db import transaction
 from decimal import Decimal
 from .models import Order, OrderItem, TableSession
@@ -12,7 +12,7 @@ from orders.redis.idempotency import (
     get_existing_order,
     store_idempotency_key,
 )
-from orders.kafka.producer import publish_order_cancelled, publish_session_started 
+from orders.kafka.producer import publish_order_cancelled, publish_session_started
 from utils.order_builder import build_order_response
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -28,8 +28,7 @@ from datetime import datetime, timedelta
 from django.utils.dateparse import parse_datetime
 from orders.kafka.producer import publish_session_closed
 from .models import MenuItemSnapshot
-
-
+from django.core.exceptions import ValidationError
 
 
 class HealthCheckView(APIView):
@@ -40,33 +39,32 @@ class HealthCheckView(APIView):
         return Response({"status": "ok"})
 
 
-
-#=======================
+# =======================
 # Internal API
-#========================
+# ========================
 
 class AIUserOrdersView(APIView):
-   
+
     authentication_classes = []
     permission_classes = []
- 
+
     def get(self, request):
-        user_id       = request.headers.get("X-User-Id")
+        user_id = request.headers.get("X-User-Id")
         restaurant_id = request.headers.get("X-Restaurant-Id")
- 
+
         if not user_id or not restaurant_id:
             return Response(
                 {"error": "Missing headers"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
- 
+
         orders = (
             Order.objects
             .filter(user_id=user_id)
             .order_by("-created_at")[:50]
             .prefetch_related("items")
         )
- 
+
         # Materialize order items ONCE into a flat list
         # This avoids calling order.items.all() twice (double DB hit)
         flat_items = []
@@ -74,18 +72,18 @@ class AIUserOrdersView(APIView):
             timestamp = int(order.created_at.timestamp())
             for item in order.items.all():          # prefetch_related — no extra query
                 flat_items.append((timestamp, item))
- 
+
         if not flat_items:
             return Response([], status=status.HTTP_200_OK)
- 
+
         # Single batch snapshot query from the flat list
-        dish_ids     = list({item.dish_id for _, item in flat_items})
-        snapshots    = MenuItemSnapshot.objects.filter(
+        dish_ids = list({item.dish_id for _, item in flat_items})
+        snapshots = MenuItemSnapshot.objects.filter(
             restaurant_id=restaurant_id,
             dish_id__in=dish_ids,
         )
         snapshot_map = {s.dish_id: s for s in snapshots}
- 
+
         results = []
         for timestamp, item in flat_items:
             snapshot = snapshot_map.get(item.dish_id)
@@ -110,9 +108,8 @@ class AIUserOrdersView(APIView):
                 "quantity":       item.quantity,
                 "timestamp":      timestamp,
             })
- 
-        return Response(results, status=status.HTTP_200_OK)
 
+        return Response(results, status=status.HTTP_200_OK)
 
 
 # Customer order view
@@ -180,7 +177,8 @@ class OrderCreateView(APIView):
 
                 if other_user_active_order_exists:
                     return Response(
-                        {"table_public_id": ["This table is currently occupied"]},
+                        {"table_public_id": [
+                            "This table is currently occupied"]},
                         status=status.HTTP_400_BAD_REQUEST
                     )
             else:
@@ -406,7 +404,57 @@ class WaiterOrderListView(APIView):
         return paginator.get_paginated_response(data)
 
 
+class WaiterOrderAcceptView(APIView):
+    def post(self, request, order_public_id):
+        try:
+            order = Order.objects.get(public_id=order_public_id)
+        except Order.DoesNotExist:
+            return Response(
+                {"error": "No order found with this order_id"},
+                status=status.HTTP_404_NOT_FOUND)
+        try:
+            order.update_status(Order.STATUS_ACCEPTED)
+        except ValidationError as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        return Response(
+            {
+                "status": order.status,
+                "order_id": order.public_id,
+            },
+            status=status.HTTP_200_OK
 
+        )
+
+
+class WaiterOrderAcceptListView(APIView):
+    def get(self, request):
+
+        queryset = (
+            Order.objects.filter(
+                status=Order.STATUS_CREATED
+            )
+            .select_related("session")
+            .prefetch_related("items")
+            .order_by("-created_at")
+        )
+
+        # ------------------------------------
+        # Pagination
+        # ------------------------------------
+        paginator = orderPagination()
+        page = paginator.paginate_queryset(queryset, request)
+
+        data = [
+            build_order_response(order)["order"]
+            for order in page
+        ]
+
+        return paginator.get_paginated_response(data)
+        
+        
 
 class WaiterTableCheckoutDetailView(APIView):
 
@@ -520,7 +568,8 @@ class WaiterTableCheckoutDetailView(APIView):
         }
 
         return Response(response_data)
-    
+
+
 # ==============
 # Admin views
 # ==============
@@ -933,14 +982,14 @@ class RestaurantAdminOrderUserListView(APIView):
         )
 
 
-
 # for seeing the current on going table
 
 class AdminTableOrdersView(APIView):
 
     def get(self, request, table_public_id):
 
-        ongoing_only = request.GET.get("ongoing_only", "false").lower() == "true"
+        ongoing_only = request.GET.get(
+            "ongoing_only", "false").lower() == "true"
 
         queryset = (
             Order.objects
@@ -1092,7 +1141,6 @@ class AdminTableCheckoutDetailView(APIView):
         }
 
         return Response(response_data)
-    
 
 
 class AdminTableSessionListView(APIView):
@@ -1131,7 +1179,8 @@ class AdminTableSessionListView(APIView):
             )
 
         if from_date:
-            queryset = queryset.filter(started_at__gte=parse_datetime(from_date))
+            queryset = queryset.filter(
+                started_at__gte=parse_datetime(from_date))
 
         if to_date:
             queryset = queryset.filter(started_at__lte=parse_datetime(to_date))
@@ -1148,7 +1197,6 @@ class AdminTableSessionListView(APIView):
         serializer = TableSessionSerializer(paginated_queryset, many=True)
 
         return paginator.get_paginated_response(serializer.data)
-    
 
 
 class CloseTableSessionView(APIView):
