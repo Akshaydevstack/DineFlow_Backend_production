@@ -118,6 +118,10 @@ class OrderCreateView(APIView):
     def post(self, request):
         restaurant_id, user_id = get_tenant_context(request)
 
+        # 1. Extract the user role
+        user_role = request.headers.get("X-User-Role", "").lower()
+        is_waiter = (user_role == "waiter")
+
         # -----------------------------
         # Idempotency Check
         # -----------------------------
@@ -136,7 +140,6 @@ class OrderCreateView(APIView):
                 status=status.HTTP_200_OK,
             )
 
-        # ⚡ Serializer will automatically run our new Geofencing check
         serializer = OrderCreateSerializer(
             data=request.data,
             context={"request": request}
@@ -177,8 +180,7 @@ class OrderCreateView(APIView):
 
                 if other_user_active_order_exists:
                     return Response(
-                        {"table_public_id": [
-                            "This table is currently occupied"]},
+                        {"table_public_id": ["This table is currently occupied"]},
                         status=status.HTTP_400_BAD_REQUEST
                     )
             else:
@@ -207,6 +209,8 @@ class OrderCreateView(APIView):
                 table_public_id=session.table_public_id,
                 zone_name=session.zone_name,
                 zone_public_id=session.zone_public_id,
+                order_by="waiter" if is_waiter else "customer",
+                waiter_id=user_id if is_waiter else None,
             )
 
             order_items = []
@@ -238,15 +242,19 @@ class OrderCreateView(APIView):
                 order_id=order.public_id,
             )
 
-            transaction.on_commit(
-                lambda: publish_order_created(order)
-            )
+            # 🟢 FIX: Only publish the 'created' event if a customer placed it
+            if not is_waiter:
+                transaction.on_commit(
+                    lambda: publish_order_created(order)
+                )
+
+            if is_waiter:
+                order.update_status(Order.STATUS_ACCEPTED)
 
         return Response(
             build_order_response(order),
             status=status.HTTP_201_CREATED,
         )
-
 
 # List all the orders for the user
 
