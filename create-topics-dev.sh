@@ -34,6 +34,7 @@ TOPICS=(
   "menu.item.deleted"
   "menu.item.updated"
   "notification.dlq"
+  "orders.created"
   "order.kitchen.dlq"
   "order.menu.dlq"
   "order.table.dlq"

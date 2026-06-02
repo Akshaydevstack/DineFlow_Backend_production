@@ -4,6 +4,8 @@ from .views import (RegisterDeviceView, NotificationListView, MarkNotificationRe
 urlpatterns = [
     path('customer/firebase-fcm/register-device/',
          RegisterDeviceView.as_view(), name='register_device of user'),
+    path('waiter/firebase-fcm/register-device/',
+         RegisterDeviceView.as_view(), name='register_device of user'),
     path("customer/", NotificationListView.as_view()),
     path("customer/<int:pk>/read/", MarkNotificationReadView.as_view()),
     path(

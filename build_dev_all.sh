@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# chmod +x deploy_dev_all.sh
+# chmod +x build_dev_all.sh
 #./build_dev_all.sh
 
 # Define your namespace

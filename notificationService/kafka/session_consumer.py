@@ -66,10 +66,8 @@ def process_event(event: dict):
     if not restaurant_id:
         raise ValueError("restaurant_id missing")
 
-    group = f"waiter_table_sessions_{restaurant_id}"
-
     logger.info(
-        "📡 Dispatching websocket session update",
+        "📡 Dispatching websocket session updates",
         extra={
             "restaurant_id": restaurant_id,
             "event_type": event.get("event_type"),
@@ -77,16 +75,26 @@ def process_event(event: dict):
         },
     )
 
+    # 1. Send to Waiter Group
     async_to_sync(channel_layer.group_send)(
-        group,
+        f"waiter_table_sessions_{restaurant_id}",
         {
             "type": "send_session_update",
             "data": event,
         },
     )
 
+    # 2. 🟢 NEW: Send to Admin Group explicitly
+    async_to_sync(channel_layer.group_send)(
+        f"admin_tables_{restaurant_id}",
+        {
+            "type": "send_table_update",
+            "data": event,
+        },
+    )
+
     logger.info(
-        "✅ WebSocket session update sent",
+        "✅ WebSocket session update sent to Waiters and Admins",
         extra={
             "restaurant_id": restaurant_id,
             "session_id": event.get("session_id"),

@@ -9,7 +9,10 @@ from django.utils.timezone import now
 
 from firebase_pushnotification.models import Notification
 from firebase_pushnotification.db.schema import set_schema, reset_schema
-from firebase_pushnotification.services.fcm_service import send_push_notification_task
+from firebase_pushnotification.services.fcm_service import (
+    send_push_notification_task,
+    send_restaurant_broadcast_notification_task
+)
 from kafka.producer import get_producer
 from kafka.dlq_producer import send_to_dlq
 
@@ -51,6 +54,7 @@ consumer = Consumer({
 
 
 consumer.subscribe([
+    "orders.created",
     "orders.placed",
     "orders.cancelled",
     "kitchen.ticket.accepted",
@@ -62,13 +66,14 @@ consumer.subscribe([
 
 
 TOPIC_TO_NOTIFICATION = {
+    "orders.created": ("New Order 🛎️", "A new order is waiting to be accepted."),
     "orders.placed": ("Order Placed", "Your order has been placed 🎉"),
     "orders.cancelled": ("Order Cancelled", "Your order was cancelled ❌"),
     "kitchen.ticket.accepted": ("Order Accepted", "Kitchen accepted your order 👨‍🍳"),
     "kitchen.ticket.preparing": ("Order Preparing", "Your order is being prepared 🍳"),
     "kitchen.ticket.ready": ("Order Ready", "Your order is ready 🍽️"),
     "kitchen.ticket.cancelled": ("Order Cancelled", "Kitchen cancelled your order ❌"),
-     "kitchen.ticket.created" : ("Kitchen ticket create", "Kitchen created a new ticket")
+    "kitchen.ticket.created": ("Kitchen ticket create", "Kitchen created a new ticket")
 }
 
 
@@ -97,6 +102,48 @@ def process_event(event: dict, topic: str):
         },
     )
 
+    # -------------------------------------------------
+    # 🔵 Realtime WebSocket & Push (Waiters & Admins)
+    # -------------------------------------------------
+    if topic == "orders.created":
+
+        # 1. FCM Broadcast to all Waiters
+        send_restaurant_broadcast_notification_task.delay(
+            restaurant_id=restaurant_id,
+            title=title,
+            body=body,
+            role="waiter"
+        )
+
+        # 2. WebSocket to active Waiter & Admin browsers
+        try:
+            # Send to Waiters
+            async_to_sync(channel_layer.group_send)(
+                f"waiter_display_{restaurant_id}",
+                {
+                    "type": "new_order_alert",
+                    "data": event,
+                },
+            )
+
+            # 🟢 NEW: Send to Admins explicitly
+            async_to_sync(channel_layer.group_send)(
+                f"admin_orders_{restaurant_id}",
+                {
+                    "type": "send_order_update",
+                    "data": event,
+                },
+            )
+            logger.info("📡 Realtime waiter and admin updates sent")
+        except Exception as e:
+            logger.exception("❌ Failed to send realtime staff updates")
+
+        # 🛑 Exit early so it DOES NOT trigger a customer notification below!
+        return
+
+    # -------------------------------------------------
+    # 🟢 Customer Notifications (FCM Push + DB Log)
+    # -------------------------------------------------
     set_schema(restaurant_id)
 
     try:
@@ -110,7 +157,7 @@ def process_event(event: dict, topic: str):
                 created_at=now(),
             )
 
-        # Queue FCM push
+        # Queue FCM push for Customer
         send_push_notification_task.delay(
             user_id=user_id,
             restaurant_id=restaurant_id,
@@ -123,10 +170,9 @@ def process_event(event: dict, topic: str):
     finally:
         reset_schema()
 
-# -------------------------------------------------
-# 🔴 Realtime WebSocket Push (Kitchen Display)
-# -------------------------------------------------
-
+    # -------------------------------------------------
+    # 🔴 Realtime WebSocket Push (Kitchen Display)
+    # -------------------------------------------------
     if topic in {
         "kitchen.ticket.created",
         "kitchen.ticket.cancelled",
@@ -161,6 +207,8 @@ def process_event(event: dict, topic: str):
 # ----------------------------
 # Main consume loop
 # ----------------------------
+
+
 def consume_notification_events():
     logger.info("🚀 Notification Kafka consumer started")
 
@@ -172,7 +220,8 @@ def consume_notification_events():
                 continue
 
             if msg.error():
-                logger.error("❌ Kafka error", extra={"error": str(msg.error())})
+                logger.error("❌ Kafka error", extra={
+                             "error": str(msg.error())})
                 continue
 
             headers = dict(msg.headers() or {})
@@ -184,9 +233,8 @@ def consume_notification_events():
                 consumer.commit(msg)
 
             except Exception as e:
-                # ✅ String interpolation forces the error into the console output
                 logger.warning(
-                    f"⚠️ Processing failed for topic {msg.topic()}: {str(e)}", 
+                    f"⚠️ Processing failed for topic {msg.topic()}: {str(e)}",
                     extra={
                         "topic": msg.topic(),
                         "retry": retry_count,

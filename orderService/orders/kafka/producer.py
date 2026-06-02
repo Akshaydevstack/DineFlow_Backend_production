@@ -53,6 +53,33 @@ def serialize_order_items(order):
         for item in order.items.all()
     ]
 
+def publish_order_created(order):
+    """
+    Fired when a customer submits an order (STATUS=CREATED).
+    Used to alert Waiters/Admins to accept it.
+    """
+    producer = get_producer()
+    
+    event = {
+        "event_type": "ORDER_CREATED",
+        "order_id": order.public_id,
+        "restaurant_id": order.restaurant_id,
+        "user_id": order.user_id,
+        "table_number": order.table_number,
+        "status": order.status,
+        "created_at": order.created_at.isoformat(),
+    }
+
+    producer.produce(
+        topic="orders.created",
+        key=order.public_id,
+        value=json.dumps(event),
+        on_delivery=_delivery_report,
+    )
+
+    producer.poll(0)
+
+
 
 def publish_order_placed(order):
     producer = get_producer()

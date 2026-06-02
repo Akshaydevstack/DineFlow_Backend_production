@@ -12,7 +12,7 @@ from orders.redis.idempotency import (
     get_existing_order,
     store_idempotency_key,
 )
-from orders.kafka.producer import publish_order_cancelled, publish_session_started
+from orders.kafka.producer import publish_order_cancelled, publish_session_started, publish_order_created
 from utils.order_builder import build_order_response
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -238,6 +238,10 @@ class OrderCreateView(APIView):
                 order_id=order.public_id,
             )
 
+            transaction.on_commit(
+                lambda: publish_order_created(order)
+            )
+
         return Response(
             build_order_response(order),
             status=status.HTTP_201_CREATED,
@@ -402,6 +406,8 @@ class WaiterOrderListView(APIView):
         ]
 
         return paginator.get_paginated_response(data)
+
+
 
 
 class WaiterOrderAcceptView(APIView):
