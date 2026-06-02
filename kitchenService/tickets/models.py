@@ -14,8 +14,12 @@ class KitchenTicket(models.Model):
         max_length=20,
         db_index=True,
     )
+
+    
     order_id = models.CharField(max_length=20, db_index=True)
     user_id = models.CharField(max_length=20)
+    table_number = models.CharField(max_length=20 ,blank=True,null=True)
+
 
    
     STATUS_RECEIVED = "RECEIVED"

@@ -43,13 +43,13 @@ class Command(BaseCommand):
 
     def get_tenant_schemas(self):
         """
-        Fetch all tenant schemas (rest_*)
+        Fetch all tenant schemas for the kitchen service
         """
         with connection.cursor() as cursor:
             cursor.execute("""
                 SELECT schema_name
                 FROM information_schema.schemata
-                WHERE schema_name LIKE 'rest_%'
+                WHERE schema_name LIKE 'kitchen_rest_%' 
                 ORDER BY schema_name
             """)
             return [row[0] for row in cursor.fetchall()]

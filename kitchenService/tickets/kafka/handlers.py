@@ -15,7 +15,9 @@ def handle_order_placed(event,tenant_id):
     ticket = KitchenTicket.objects.create(
         order_id=order_id,
         user_id=event["user_id"],
-        restaurant_id=tenant_id
+        restaurant_id=tenant_id,
+        table_number = event["table_number"]
+        
     )
 
     items = event.get("items", [])
