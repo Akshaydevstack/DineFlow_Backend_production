@@ -445,7 +445,6 @@ class WaiterOrderAcceptView(APIView):
 
 class WaiterOrderAcceptListView(APIView):
     def get(self, request):
-
         queryset = (
             Order.objects.filter(
                 status=Order.STATUS_CREATED
@@ -455,54 +454,36 @@ class WaiterOrderAcceptListView(APIView):
             .order_by("-created_at")
         )
 
-        # ------------------------------------
-        # Pagination
-        # ------------------------------------
-        paginator = orderPagination()
-        page = paginator.paginate_queryset(queryset, request)
-
+        # 🟢 FIX: Removed pagination so it fetches all pending orders
         data = [
             build_order_response(order)["order"]
-            for order in page
+            for order in queryset
         ]
 
-        return paginator.get_paginated_response(data)
-
+        return Response(data)
 
 
 class WaiterOrderReadyListView(APIView):
     def get(self, request):
-        # Extract the current waiter's ID from the request context
         restaurant_id, current_waiter_id = get_tenant_context(request)
 
-        # Filter for orders strictly in the READY status
         queryset = (
             Order.objects.filter(
                 status=Order.STATUS_READY
             )
             .select_related("session")
             .prefetch_related("items")
-            # Sorting by '-ready_at' ensures the most recently finished items appear first
             .order_by("-ready_at", "-created_at")
         )
 
-        # ------------------------------------
-        # Pagination
-        # ------------------------------------
-        paginator = orderPagination()
-        page = paginator.paginate_queryset(queryset, request)
-
+        # 🟢 FIX: Removed pagination so it fetches all ready orders
         data = []
-        for order in page:
-            # Build the base order response using your existing helper
+        for order in queryset:
             order_data = build_order_response(order)["order"]
-            
-            # 🟢 Inject the custom flag: True if the current waiter placed it
             order_data["placed_by_me"] = (order.waiter_id == current_waiter_id)
-            
             data.append(order_data)
 
-        return paginator.get_paginated_response(data)
+        return Response(data)
     
 
 
