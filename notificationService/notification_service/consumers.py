@@ -96,9 +96,17 @@ class WaiterDisplayConsumer(AsyncWebsocketConsumer):
             self.channel_name
         )
 
+    # 1. Triggered for completely new orders
     async def new_order_alert(self, event):
         await self.send(text_data=json.dumps({
             "type": "new_order_alert",
+            "data": event["data"]
+        }))
+
+    # 🟢 2. NEW: Triggered when Kitchen marks ticket as READY
+    async def order_ready_alert(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "order_ready_alert",
             "data": event["data"]
         }))
 

@@ -76,7 +76,6 @@ TOPIC_TO_NOTIFICATION = {
     "kitchen.ticket.created": ("Kitchen ticket create", "Kitchen created a new ticket")
 }
 
-
 # ----------------------------
 # Event processing
 # ----------------------------
@@ -103,10 +102,9 @@ def process_event(event: dict, topic: str):
     )
 
     # -------------------------------------------------
-    # 🔵 Realtime WebSocket & Push (Waiters & Admins)
+    # 🔵 Realtime WebSocket & Push (Waiters & Admins) - NEW ORDERS
     # -------------------------------------------------
     if topic == "orders.created":
-
         # 1. FCM Broadcast to all Waiters
         send_restaurant_broadcast_notification_task.delay(
             restaurant_id=restaurant_id,
@@ -126,7 +124,7 @@ def process_event(event: dict, topic: str):
                 },
             )
 
-            # 🟢 NEW: Send to Admins explicitly
+            # Send to Admins explicitly
             async_to_sync(channel_layer.group_send)(
                 f"admin_orders_{restaurant_id}",
                 {
@@ -171,12 +169,11 @@ def process_event(event: dict, topic: str):
         reset_schema()
 
     # -------------------------------------------------
-    # 🔴 Realtime WebSocket Push (Kitchen Display)
+    # 🔴 Realtime Staff Updates (Kitchen, Admin, Waiter)
     # -------------------------------------------------
-    if topic in {
-        "kitchen.ticket.created",
-        "kitchen.ticket.cancelled",
-    }:
+    
+    # 1. Update Kitchen Display (Created/Cancelled)
+    if topic in {"kitchen.ticket.created", "kitchen.ticket.cancelled"}:
         try:
             async_to_sync(channel_layer.group_send)(
                 f"kitchen_display_{restaurant_id}",
@@ -185,24 +182,46 @@ def process_event(event: dict, topic: str):
                     "data": event,
                 },
             )
-
-            logger.info(
-                "📡 Realtime kitchen update sent",
-                extra={
-                    "restaurant_id": restaurant_id,
-                    "topic": topic,
-                },
-            )
-
+            logger.info("📡 Realtime kitchen update sent")
         except Exception as e:
-            logger.exception(
-                "❌ Failed to send realtime kitchen update",
-                extra={
-                    "restaurant_id": restaurant_id,
-                    "topic": topic,
-                    "error": str(e),
+            logger.exception("❌ Failed to send realtime kitchen update")
+
+    # 2. 🟢 FIX: Update Admin Display on ANY Kitchen Ticket Change
+    if topic.startswith("kitchen.ticket."):
+        try:
+            async_to_sync(channel_layer.group_send)(
+                f"admin_orders_{restaurant_id}",
+                {
+                    "type": "send_order_update", # Ensure your Django consumer maps this type!
+                    "data": event,
                 },
             )
+            logger.info("📡 Realtime admin update sent for kitchen change")
+        except Exception as e:
+            logger.exception("❌ Failed to send realtime admin update")
+
+    # 3. 🟢 FIX: Notify Waiter when Order is Ready (FCM + WebSocket)
+    if topic == "kitchen.ticket.ready":
+        # Push Notification to Waiters
+        send_restaurant_broadcast_notification_task.delay(
+            restaurant_id=restaurant_id,
+            title="Order Ready for Pickup! 🍽️",
+            body=f"Order {event.get('order_id', '')} is ready.",
+            role="waiter"
+        )
+        
+        # WebSocket to Waiters
+        try:
+            async_to_sync(channel_layer.group_send)(
+                f"waiter_display_{restaurant_id}",
+                {
+                    "type": "order_ready_alert", # Ensure your frontend expects this type
+                    "data": event,
+                },
+            )
+            logger.info("📡 Realtime waiter update sent for ready order")
+        except Exception as e:
+            logger.exception("❌ Failed to send realtime waiter update")
 
 # ----------------------------
 # Main consume loop
