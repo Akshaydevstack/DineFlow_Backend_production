@@ -199,6 +199,7 @@ def process_event(event: dict, topic: str):
             logger.info("📡 Realtime admin update sent for kitchen change")
         except Exception as e:
             logger.exception("❌ Failed to send realtime admin update")
+            
 
     # 3. 🟢 FIX: Notify Waiter when Order is Ready (FCM + WebSocket)
     if topic == "kitchen.ticket.ready":
