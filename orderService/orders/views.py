@@ -467,8 +467,44 @@ class WaiterOrderAcceptListView(APIView):
         ]
 
         return paginator.get_paginated_response(data)
-        
-        
+
+
+
+class WaiterOrderReadyListView(APIView):
+    def get(self, request):
+        # Extract the current waiter's ID from the request context
+        restaurant_id, current_waiter_id = get_tenant_context(request)
+
+        # Filter for orders strictly in the READY status
+        queryset = (
+            Order.objects.filter(
+                status=Order.STATUS_READY
+            )
+            .select_related("session")
+            .prefetch_related("items")
+            # Sorting by '-ready_at' ensures the most recently finished items appear first
+            .order_by("-ready_at", "-created_at")
+        )
+
+        # ------------------------------------
+        # Pagination
+        # ------------------------------------
+        paginator = orderPagination()
+        page = paginator.paginate_queryset(queryset, request)
+
+        data = []
+        for order in page:
+            # Build the base order response using your existing helper
+            order_data = build_order_response(order)["order"]
+            
+            # 🟢 Inject the custom flag: True if the current waiter placed it
+            order_data["placed_by_me"] = (order.waiter_id == current_waiter_id)
+            
+            data.append(order_data)
+
+        return paginator.get_paginated_response(data)
+    
+
 
 class WaiterTableCheckoutDetailView(APIView):
 
