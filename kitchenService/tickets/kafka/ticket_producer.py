@@ -26,6 +26,7 @@ def publish_kitchen_ticket_event(event_type: str, ticket):
         "public_id": str(ticket.public_id),
         "order_id": ticket.order_id,
         "user_id": ticket.user_id,
+        "table_number": ticket.table_number,
         "restaurant_id": ticket.restaurant_id,
         "status": ticket.status,
         "items": [
