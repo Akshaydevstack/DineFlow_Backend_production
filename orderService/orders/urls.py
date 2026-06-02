@@ -20,7 +20,8 @@ from .views import (
     WaiterTableCheckoutDetailView,
     AIUserOrdersView,
     WaiterOrderAcceptView,
-    WaiterOrderAcceptListView
+    WaiterOrderAcceptListView,
+    WaiterOrderReadyListView
     )
 
 urlpatterns = [
@@ -43,6 +44,7 @@ urlpatterns = [
     path("waiter/create/", OrderCreateView.as_view(), name="waiter-create-order"),
     path("waiter/all-orders/", WaiterOrderListView.as_view(), name="waiter-get-all-orders"),
     path("waiter/to-accept/", WaiterOrderAcceptListView.as_view(), name="waiter-orders-to-accept"),
+    path("waiter/ready-order/", WaiterOrderReadyListView.as_view(), name="waiter-orders-to-pickup"),
     
     # 2. More specific dynamic paths go NEXT
     path("waiter/table/<str:table_public_id>/checkout/", WaiterTableCheckoutDetailView.as_view()),
