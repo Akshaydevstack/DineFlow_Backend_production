@@ -34,6 +34,7 @@ def publish_kitchen_event(event_type, ticket):
         "order_id": ticket.order_id,
         "user_id": ticket.user_id,
         "restaurant_id": ticket.restaurant_id,
+        "table_number": ticket.table_number,
         "status": ticket.status,
         "occurred_at": ticket.updated_at.isoformat(),
     }
