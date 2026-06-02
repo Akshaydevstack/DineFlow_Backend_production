@@ -31,6 +31,7 @@ class KitchenTicketListSerializer(serializers.ModelSerializer):
         fields = [
             "public_id",
             "order_id",
+            "table_number",
             "restaurant_id",
             "user_id",
             "status",
