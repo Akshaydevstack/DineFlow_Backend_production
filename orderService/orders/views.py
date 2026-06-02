@@ -454,13 +454,18 @@ class WaiterOrderAcceptListView(APIView):
             .order_by("-created_at")
         )
 
-        # 🟢 FIX: Removed pagination so it fetches all pending orders
+        # ------------------------------------
+        # Pagination Restored
+        # ------------------------------------
+        paginator = orderPagination()
+        page = paginator.paginate_queryset(queryset, request)
+
         data = [
             build_order_response(order)["order"]
-            for order in queryset
+            for order in page
         ]
 
-        return Response(data)
+        return paginator.get_paginated_response(data)
 
 
 class WaiterOrderReadyListView(APIView):
@@ -476,14 +481,19 @@ class WaiterOrderReadyListView(APIView):
             .order_by("-ready_at", "-created_at")
         )
 
-        # 🟢 FIX: Removed pagination so it fetches all ready orders
+        # ------------------------------------
+        # Pagination Restored
+        # ------------------------------------
+        paginator = orderPagination()
+        page = paginator.paginate_queryset(queryset, request)
+
         data = []
-        for order in queryset:
+        for order in page:
             order_data = build_order_response(order)["order"]
             order_data["placed_by_me"] = (order.waiter_id == current_waiter_id)
             data.append(order_data)
 
-        return Response(data)
+        return paginator.get_paginated_response(data)
     
 
 
