@@ -49,7 +49,7 @@ class Command(BaseCommand):
             cursor.execute("""
                 SELECT schema_name
                 FROM information_schema.schemata
-                WHERE schema_name LIKE 'rest_%'
+                WHERE schema_name LIKE 'menu_rest_%'
                 ORDER BY schema_name
             """)
             return [row[0] for row in cursor.fetchall()]

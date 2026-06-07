@@ -305,7 +305,6 @@ def run_agent(
     session = get_session(user_id, restaurant_id)
     session["table_public_id"] = table_public_id
     set_user_location(user_id, latitude, longitude)
-    # ⚡ FIX 2: Save the session immediately so tools can read the coordinates from the DB!
     save_session(user_id, restaurant_id, session)
 
     if not session.get("cached_user_meta") or not session.get("cached_rest_meta"):

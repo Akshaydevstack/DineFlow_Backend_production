@@ -1,7 +1,7 @@
 import json
 import os
 import psycopg2
-from psycopg2 import pool # 👈 Imported pool
+from psycopg2 import pool
 from contextlib import contextmanager
 from functools import lru_cache 
 from loguru import logger
@@ -25,6 +25,7 @@ try:
         options="-c search_path=ai_service,extensions,public"
     )
     logger.info("✅ Database Connection Pool Created (Schema: ai_service)")
+    
 except Exception as e:
     logger.error(f"Failed to create DB pool: {e}")
     db_pool = None
@@ -42,9 +43,6 @@ def get_db_connection():
         db_pool.putconn(conn) # Puts it back in the pool for the next user
 
 
-# ---------------------------------------------------
-# Setup Tables (run once)
-# ---------------------------------------------------
 
 # ---------------------------------------------------
 # Setup Tables (run once)

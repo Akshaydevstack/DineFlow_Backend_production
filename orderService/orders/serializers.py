@@ -66,26 +66,31 @@ class OrderCreateSerializer(serializers.Serializer):
         user_lat = attrs.get("user_latitude")
         user_lon = attrs.get("user_longitude")
 
+
+        restaurant = Restaurant.objects.get(public_id=restaurant_id)
+
+        if not restaurant.is_open:
+            raise serializers.ValidationError(
+                {"restaurant": "Restaurant is currently closed."}
+            )
+
         # ---------------------------------
         # 📍 Geofencing Validation (50 Meters) - Bypassed for Waiters
         # ---------------------------------
+        
         if not is_waiter:
             # Customers MUST provide coordinates
             if user_lat is None or user_lon is None:
                 raise serializers.ValidationError(
                     {"location": "Location coordinates are required to place an order."}
                 )
-
-            try:
-                restaurant = Restaurant.objects.get(public_id=restaurant_id)
-                
+            try:  
                 # Only enforce if the restaurant admin has actually set their coordinates
                 if restaurant.latitude and restaurant.longitude:
                     distance = calculate_distance(
                         user_lat, user_lon, 
                         restaurant.latitude, restaurant.longitude
-                    )
-                    
+                    ) 
                     # Check if distance exceeds 50 meters
                     if distance > 50:
                         raise serializers.ValidationError(
