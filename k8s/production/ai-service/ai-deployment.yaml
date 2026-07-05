@@ -28,7 +28,7 @@ spec:
         effect: "NoSchedule"
       containers:
         - name: consumer
-          image: 831411500771.dkr.ecr.ap-south-1.amazonaws.com/dineflow-ai:latest
+          image: 025211337593.dkr.ecr.ap-south-1.amazonaws.com/dineflow-ai:latest
           imagePullPolicy: Always 
           command:
             - python
@@ -117,7 +117,7 @@ spec:
         effect: "NoSchedule"
       containers:
         - name: ai-service
-          image: 831411500771.dkr.ecr.ap-south-1.amazonaws.com/dineflow-ai:latest
+          image: 025211337593.dkr.ecr.ap-south-1.amazonaws.com/dineflow-ai:latest
           imagePullPolicy: Always 
           ports:
             - containerPort: 8001

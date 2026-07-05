@@ -48,7 +48,7 @@ spec:
               done
       containers:
         - name: menu-service
-          image: 831411500771.dkr.ecr.ap-south-1.amazonaws.com/dineflow-menu:latest
+          image: 025211337593.dkr.ecr.ap-south-1.amazonaws.com/dineflow-menu:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8000

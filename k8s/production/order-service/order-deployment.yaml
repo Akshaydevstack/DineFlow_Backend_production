@@ -51,7 +51,7 @@ spec:
               done
       containers:
         - name: order-service
-          image: 831411500771.dkr.ecr.ap-south-1.amazonaws.com/dineflow-order:latest
+          image: 025211337593.dkr.ecr.ap-south-1.amazonaws.com/dineflow-order:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
@@ -154,7 +154,7 @@ spec:
     spec:
       containers:
         - name: celery-beat
-          image: 831411500771.dkr.ecr.ap-south-1.amazonaws.com/dineflow-order:latest
+          image: 025211337593.dkr.ecr.ap-south-1.amazonaws.com/dineflow-order:latest
           imagePullPolicy: Always
           command:
             - celery
@@ -236,7 +236,7 @@ spec:
     spec:
       containers:
         - name: celery-worker
-          image: 831411500771.dkr.ecr.ap-south-1.amazonaws.com/dineflow-order:latest
+          image: 025211337593.dkr.ecr.ap-south-1.amazonaws.com/dineflow-order:latest
           imagePullPolicy: Always
           command:
             - celery
@@ -319,7 +319,7 @@ spec:
     spec:
       containers:
         - name: consumer
-          image: 831411500771.dkr.ecr.ap-south-1.amazonaws.com/dineflow-order:latest
+          image: 025211337593.dkr.ecr.ap-south-1.amazonaws.com/dineflow-order:latest
           imagePullPolicy: Always
           command:
             - python
@@ -394,7 +394,7 @@ spec:
     spec:
       containers:
         - name: consumer
-          image: 831411500771.dkr.ecr.ap-south-1.amazonaws.com/dineflow-order:latest
+          image: 025211337593.dkr.ecr.ap-south-1.amazonaws.com/dineflow-order:latest
           imagePullPolicy: Always
           command:
             - python
@@ -469,7 +469,7 @@ spec:
     spec:
       containers:
         - name: consumer
-          image: 831411500771.dkr.ecr.ap-south-1.amazonaws.com/dineflow-order:latest
+          image: 025211337593.dkr.ecr.ap-south-1.amazonaws.com/dineflow-order:latest
           imagePullPolicy: Always
           command:
             - python
@@ -546,7 +546,7 @@ spec:
     spec:
       containers:
         - name: consumer
-          image: 831411500771.dkr.ecr.ap-south-1.amazonaws.com/dineflow-order:latest
+          image: 025211337593.dkr.ecr.ap-south-1.amazonaws.com/dineflow-order:latest
           imagePullPolicy: Always
           command:
             - python

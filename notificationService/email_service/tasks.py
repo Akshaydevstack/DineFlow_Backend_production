@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 WELCOME_EMAIL_QUEUE_URL = os.environ.get(
     "WELCOME_EMAIL_QUEUE_URL", 
-    "https://sqs.ap-south-1.amazonaws.com/831411500771/welcome-email-queue"
+    "https://sqs.ap-south-1.amazonaws.com/025211337593/welcome-email-queue"
 )
 
 @shared_task(
