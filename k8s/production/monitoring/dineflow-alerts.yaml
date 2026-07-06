@@ -1,0 +1,40 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: dineflow-service-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+spec:
+  groups:
+  - name: dineflow.rules
+    rules:
+    # 1. Alert if any core microservice pod goes down
+    - alert: MicroservicePodDown
+      expr: kube_deployment_status_replicas_available{namespace="dineflow-production"} == 0
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "DineFlow Microservice Deployment Down"
+        description: "The deployment {{ $labels.deployment }} has 0 available replicas for more than 2 minutes."
+
+    # 2. Alert on High Gateway Error Rate (5xx Responses)
+    - alert: GatewayHighErrorRate
+      expr: sum(rate(nginx_http_requests_total{status=~"5.."}[5m])) / sum(rate(nginx_http_requests_total[5m])) * 100 > 5
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "High Gateway Error Rate Detected"
+        description: "API Gateway 5xx error rate is at {{ $value | printf \"%.2f\" }}% over the last 5 minutes."
+
+    # 3. Alert on Celery Task Failures (Requires a celery metric exporter)
+    - alert: CeleryTaskFailuresRising
+      expr: sum(rate(celery_task_failed_total[5m])) > 0.05
+      for: 1m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Celery Task Failures Detected"
+        description: "Celery workers are failing tasks at a rate of {{ $value }} failures/sec."
