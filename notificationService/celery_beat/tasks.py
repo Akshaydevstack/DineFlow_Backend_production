@@ -57,31 +57,40 @@ def delete_readed_notifications(self):
             with connection.cursor() as cursor:
                 cursor.execute(f'SET search_path TO "{schema}", public')
 
-            # CRITICAL FOR RDS/SUPABASE: Flush Django's connection state cache
-            if hasattr(connection, 'close_if_unusable_or_obsolete'):
-                connection.close_if_unusable_or_obsolete()
+                cursor.execute("SHOW search_path")
+                logger.info(f"search_path = {cursor.fetchone()[0]}")
 
-            # Execute delete within the verified schema context boundary
-            deleted_count, _ = Notification.objects.filter(is_read=True).delete()
+                cursor.execute("SELECT current_schema()")
+                logger.info(f"current_schema = {cursor.fetchone()[0]}")
+
+                cursor.execute("""
+                    SELECT EXISTS (
+                        SELECT 1
+                        FROM information_schema.tables
+                        WHERE table_schema = current_schema()
+                        AND table_name = 'firebase_pushnotification_notification'
+                    )
+                """)
+                logger.info(f"table exists = {cursor.fetchone()[0]}")
+
+            deleted_count, _ = Notification.objects.filter(
+                is_read=True
+            ).delete()
+
             total_deleted += deleted_count
 
-            if deleted_count > 0:
-                logger.warning(f"🗑️ Deleted {deleted_count} read notifications | schema={schema}")
-            else:
-                logger.info(f"✅ No stale notifications found | schema={schema}")
+            logger.info(
+                f"Deleted {deleted_count} notifications from {schema}"
+            )
 
-        except Exception as e:
-            logger.exception(f"❌ Failed cleaning notifications | schema={schema}")
-            # Individual schema failures won't break the entire worker process loop
-            continue
+        except Exception:
+            logger.exception(
+                f"Failed cleaning notifications | schema={schema}"
+            )
 
         finally:
-            # Revert connection path reference back to safe tracking standards
-            try:
-                with connection.cursor() as cursor:
-                    cursor.execute("SET search_path TO public")
-            except Exception:
-                logger.error(f"🚨 Failed tracking clean context reset step back to public boundary after leaving schema={schema}")
-
+            with connection.cursor() as cursor:
+                cursor.execute("SET search_path TO public")
+                
     logger.info(f"🏁 Notification cleanup finished | total_deleted={total_deleted}")
     return total_deleted
