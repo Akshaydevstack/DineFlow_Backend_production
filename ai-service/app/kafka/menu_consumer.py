@@ -52,13 +52,13 @@ TOPIC_HANDLERS = {
     "kitchen.ticket.preparing": handle_order_status_update,
     "kitchen.ticket.ready":     handle_order_status_update,
     "kitchen.ticket.cancelled": handle_order_status_update,
-    "restaurant.created":       handle_restaurant_event,  # NEW
-    "restaurant.updated":       handle_restaurant_event,  # NEW
+    "restaurant.created":       handle_restaurant_event,  
+    "restaurant.updated":       handle_restaurant_event,  
     "restaurant.table.upsert":  handle_table_upsert,
     "table.session.started":    handle_table_session,
     "table.session.closed":     handle_table_session,
-    "user.created":             handle_user_event,  # 👈 MAPS HERE
-    "user.updated":             handle_user_event,  # 👈 AND HERE
+    "user.created":             handle_user_event,  
+    "user.updated":             handle_user_event, 
 }
 
 running = True

@@ -82,3 +82,4 @@ def get_user_history(user_id: str, limit: int = 50):
     except Exception as e:
         print("DynamoDB error:", e)
         return []
+    

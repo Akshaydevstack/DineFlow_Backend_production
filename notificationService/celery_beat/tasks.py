@@ -17,7 +17,7 @@ SERVICE_NAME = os.getenv("SERVICE_NAME", "notification").lower()
     retry_backoff=30,
     retry_kwargs={"max_retries": 3},
 )
-def delete_read_notifications(self):
+def delete_readed_notifications(self):
     total_deleted = 0
     schemas = []
 
