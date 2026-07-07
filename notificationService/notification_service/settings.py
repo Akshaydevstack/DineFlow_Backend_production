@@ -216,7 +216,7 @@ CELERY_TASK_DEFAULT_QUEUE = "notification_queue"
 CELERY_BEAT_SCHEDULE = {
     "delete-readed-notifications-every-morning": {
         "task": "celery_beat.tasks.delete_readed_notifications",
-        "schedule": crontab(hour=11, minute=15),
+        "schedule": crontab(),
         "options": {"queue": "notification_queue"},
     }
 }
