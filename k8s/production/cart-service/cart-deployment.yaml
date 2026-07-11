@@ -48,7 +48,7 @@ spec:
               done
       containers:
         - name: cart-service
-          image: 025211337593.dkr.ecr.ap-south-1.amazonaws.com/dineflow-cart:latest
+          image: 857932879726.dkr.ecr.ap-south-1.amazonaws.com/dineflow-cart:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
@@ -150,7 +150,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: consumer
-          image: 025211337593.dkr.ecr.ap-south-1.amazonaws.com/dineflow-cart:latest
+          image: 857932879726.dkr.ecr.ap-south-1.amazonaws.com/dineflow-cart:latest
           imagePullPolicy: Always
           command:
             - python

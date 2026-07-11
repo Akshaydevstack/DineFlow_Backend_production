@@ -5,7 +5,7 @@ metadata:
   namespace: dineflow-production
 data:
   KAFKA_BOOTSTRAP_SERVERS: "redpanda.dineflow-production.svc.cluster.local:9092"
-  REDIS_HOST: "dineflow-redis.7rxoio.0001.aps1.cache.amazonaws.com" 
+  REDIS_HOST: "dineflow-redis.xzjxva.0001.aps1.cache.amazonaws.com" 
   REDIS_PORT: "6379"
   AWS_DEFAULT_REGION: "ap-south-1"
 
