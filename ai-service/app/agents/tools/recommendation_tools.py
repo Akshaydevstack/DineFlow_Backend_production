@@ -41,7 +41,6 @@ def tool_get_personalized_recommendations(user_id: str, restaurant_id: str) -> s
 
         lines = []
         for meta in recs:
-            # ✅ FIX 1: Extract the first image from the 'images' array returned by the API
             images_array = meta.get("images", [])
             image_url = images_array[0] if isinstance(images_array, list) and len(images_array) > 0 else ""
             
@@ -49,7 +48,6 @@ def tool_get_personalized_recommendations(user_id: str, restaurant_id: str) -> s
             dish_id = meta.get("public_id", meta.get("dish_id", "Unknown"))
             available = meta.get("is_available", meta.get("available", True))
             
-            # The inline properties separated by |
             dish_line = (
                 f"- {meta.get('name', 'Unknown')} | "
                 f"₹{meta.get('price', 'N/A')} | "
@@ -59,12 +57,10 @@ def tool_get_personalized_recommendations(user_id: str, restaurant_id: str) -> s
                 f"image: {image_url}"
             )
             
-            # Description
             description = meta.get("description", "").strip()
             if description:
                 dish_line += f"\n  Description: {description}"
                 
-            # ✅ FIX 2: Convert Django API boolean flags into a comma-separated tags string
             tags_list = []
             if meta.get("is_veg"): tags_list.append("Vegetarian")
             elif meta.get("is_veg") is False: tags_list.append("Non-Vegetarian")

@@ -18,16 +18,20 @@ router = APIRouter()
 # Request Models
 # ---------------------------------------------------
 
+
 class WaiterRequest(BaseModel):
     message: str
-    latitude: Optional[float] = None   # ⚡ Added so FastAPI accepts it
-    longitude: Optional[float] = None  # ⚡ Added so FastAPI accepts it
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+
 
 class TrackViewRequest(BaseModel):
     dish: Dict[str, Any]
 
-# ---------------------------------------------------
+
 # Endpoints
+# ---------------------------------------------------
+# Track-view to Dynamo DB AWS and store it there..
 # ---------------------------------------------------
 
 @router.post("/track-view/")
@@ -39,13 +43,17 @@ async def track_view(
     await asyncio.to_thread(store_dish_view, x_user_id, payload.dish, x_restaurant_id)
     return {"message": "view tracked"}
 
+# ---------------------------------------------------
+# AI recommendations
+# ---------------------------------------------------
+
 
 @router.get("/recommendations/")
 async def get_recommendations(
     x_user_id: str = Header(..., alias="X-User-Id"),
     x_restaurant_id: str = Header(..., alias="X-Restaurant-Id")
 ):
-    views = await asyncio.to_thread(get_user_history, x_user_id) 
+    views = await asyncio.to_thread(get_user_history, x_user_id)
     cart = await fetch_user_cart(x_user_id, x_restaurant_id)
     orders = await fetch_user_orders(x_user_id, x_restaurant_id)
     dishes = await fetch_menu_dishes(x_restaurant_id)
@@ -93,14 +101,15 @@ async def ai_waiter_endpoint(
             restaurant_id=x_restaurant_id,
             table_public_id=x_table_id,
             message=payload.message,
-            latitude=payload.latitude,   # ⚡ Direct access from Pydantic model
-            longitude=payload.longitude  # ⚡ Direct access from Pydantic model
+            latitude=payload.latitude,
+            longitude=payload.longitude
         )
         return result
 
     except ResourceExhausted:
         logger.warning(f"Google API Rate Limit hit for user {x_user_id}")
-        raise HTTPException(status_code=429, detail="AI is busy, please try again in a few minutes")
+        raise HTTPException(
+            status_code=429, detail="AI is busy, please try again in a few minutes")
 
     except Exception as e:
         logger.exception(f"Waiter endpoint error: {e}")

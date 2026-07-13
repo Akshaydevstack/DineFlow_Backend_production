@@ -88,7 +88,6 @@ def ingest_menu(dishes: list, restaurant_id: str):
 def build_order_text(order: dict) -> str:
     """Creates a semantic string representing a past order for the AI to search."""
     
-    # Safely extract items using 'name' or 'dish_name'
     items = ", ".join([
         f"{i.get('name', i.get('dish_name', 'Item'))} x{i.get('quantity', 1)}" 
         for i in order.get("items", [])
@@ -121,7 +120,7 @@ def ingest_order_history(orders: list, user_id: str, restaurant_id: str):
             restaurant_id=restaurant_id,
             content=text,
             embedding=embedding,
-            metadata=order  # 👈 Pass the entire rich dictionary straight into the JSONB column!
+            metadata=order 
         )
 
 
@@ -131,7 +130,6 @@ def update_order_status(order_id: str, restaurant_id: str, status: str):
     Fetches the existing order, updates the status, re-generates the text 
     and vector embedding, and saves it back to the database.
     """
-    # 1. Fetch the existing order metadata from Postgres
     existing_metadata = get_order_metadata(order_id, restaurant_id)
 
     if not existing_metadata:
@@ -139,23 +137,18 @@ def update_order_status(order_id: str, restaurant_id: str, status: str):
             f"⚠️ Cannot update status: Order {order_id} not found in Vector DB.")
         return
 
-    # ✅ ADDED: Idempotency check to prevent duplicate DB writes and embedding generation
     if existing_metadata.get("status") == status:
         logger.info(
             f"⏭️ Skipping update | Order {order_id} is already '{status}'")
         return
 
-    # 2. Update the status in the metadata
     existing_metadata["status"] = status
 
-    # 3. Re-build the text string using the existing order data
-    # (Since your metadata contains 'items', 'total', 'date', it perfectly matches what build_order_text needs)
     new_text = build_order_text(existing_metadata)
 
-    # 4. Generate the new embedding
+  
     new_embedding = embedder.encode(new_text).tolist()
 
-    # 5. Update the record in the database
     update_order_record(
         order_id=order_id,
         restaurant_id=restaurant_id,
@@ -178,7 +171,7 @@ def build_restaurant_text(rest: dict) -> str:
         f"Hours: {rest.get('opening_time')} to {rest.get('closing_time')}",
         "Currently Open" if rest.get("is_open") else "Currently Closed"
     ]
-    # Add zones only if they exist in the payload (Kafka event won't have them yet)
+   
     if rest.get('zones'):
         parts.append(f"Zones available: {', '.join(rest.get('zones'))}")
         
@@ -188,7 +181,7 @@ def build_restaurant_text(rest: dict) -> str:
 
 def ingest_restaurants(restaurants: list):
     
-    setup_vector_tables() # Ensures tables exist
+    setup_vector_tables() 
     
     for rest in restaurants:
         text = build_restaurant_text(rest)

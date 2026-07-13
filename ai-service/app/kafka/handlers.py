@@ -79,6 +79,7 @@ def handle_dish_event(event: dict, topic: str):
 # Order event handler (Full Order Creation)
 # --------------------------------------------------
 
+
 def handle_order_event(event: dict, topic: str):
     """
     Catches the orders.placed event and prepares it for pgvector insertion.
@@ -91,7 +92,7 @@ def handle_order_event(event: dict, topic: str):
         "order_id": event.get("order_id"),
         "date": event.get("created_at"),
         "status": event.get("status", "CREATED"),
-        
+
         # Financials
         "total": event.get("total", "0.00"),
         "subtotal": event.get("subtotal", "0.00"),
@@ -99,17 +100,17 @@ def handle_order_event(event: dict, topic: str):
         "discount": event.get("discount", "0"),
         "currency": event.get("currency", "INR"),
         "payment_status": event.get("payment_status", "PENDING"),
-        
+
         # Table & Location
         "table_number": event.get("table_number"),
         "table_public_id": event.get("table_public_id"),
         "zone_name": event.get("zone_name"),
         "zone_public_id": event.get("zone_public_id"),
-        
+
         # Specifics
         "special_request": event.get("special_request", ""),
         "order_by": event.get("order_by", "customer"),
-        
+
         # Items (passed exactly as received from Kafka)
         "items": event.get("items", [])
     }

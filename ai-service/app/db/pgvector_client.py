@@ -11,17 +11,15 @@ from loguru import logger
 # ---------------------------------------------------
 
 try:
-    # ⚡ FIXED: Calling pool directly with schema isolation!
     db_pool = pool.ThreadedConnectionPool(
         minconn=1,
-        maxconn=20, # Handles up to 20 concurrent AI requests instantly
+        maxconn=20, 
         host=os.getenv("POSTGRES_HOST", "localhost"),
         port=os.getenv("POSTGRES_PORT", 5432),
-        dbname=os.getenv("POSTGRES_DB", "postgres"), # Use the main database name
+        dbname=os.getenv("POSTGRES_DB", "postgres"), 
         user=os.getenv("POSTGRES_USER", "postgres"),
         password=os.getenv("POSTGRES_PASSWORD", "postgres"),
         
-        # 🛡️ THE FIX: Forces every connection in this pool to use the ai_service schema
         options="-c search_path=ai_service,extensions,public"
     )
     logger.info("✅ Database Connection Pool Created (Schema: ai_service)")
@@ -29,6 +27,8 @@ try:
 except Exception as e:
     logger.error(f"Failed to create DB pool: {e}")
     db_pool = None
+
+
 
 @contextmanager
 def get_db_connection():
@@ -40,7 +40,7 @@ def get_db_connection():
     try:
         yield conn
     finally:
-        db_pool.putconn(conn) # Puts it back in the pool for the next user
+        db_pool.putconn(conn) 
 
 
 
@@ -191,6 +191,7 @@ def insert_menu_item(dish_id, restaurant_id, content, embedding, metadata):
             conn.commit()
 
 
+
 def insert_order_history(user_id, restaurant_id, content, embedding, metadata):
     """Store one order history embedding into pgvector."""
     with get_db_connection() as conn:
@@ -207,6 +208,7 @@ def insert_order_history(user_id, restaurant_id, content, embedding, metadata):
                 json.dumps(metadata) if isinstance(metadata, dict) else metadata,
             ))
             conn.commit()
+
 
 
 def insert_restaurant_info(public_id, content, embedding, metadata):

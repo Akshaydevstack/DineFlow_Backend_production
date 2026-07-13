@@ -1,11 +1,6 @@
 import httpx
 import os
 
-# CART_SERVICE_URL = os.getenv(
-#     "CART_SERVICE_URL",
-#     "http://cart-service.dineflow-dev.svc.cluster.local:8000"
-# )
-
 CART_SERVICE_URL = os.getenv(
     "CART_SERVICE_URL",
     "http://cart-service.dineflow-production.svc.cluster.local:8000"
@@ -85,7 +80,7 @@ async def tool_remove_from_cart(user_id, restaurant_id, dish_id):
 
     async with httpx.AsyncClient(timeout=5.0) as client:
         res = await client.request(
-            "DELETE",   # ⚠️ use request() because some servers ignore body in delete()
+            "DELETE",  
             url,
             json={"dish_id": dish_id},
             headers=headers

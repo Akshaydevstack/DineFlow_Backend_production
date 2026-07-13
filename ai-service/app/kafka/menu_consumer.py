@@ -16,7 +16,8 @@ from app.db.pgvector_client import setup_vector_tables
 # --------------------------------------------------
 CONSUMER_NAME = "ai-service-consumer"
 DLQ_TOPIC = "ai.service.dlq"
-KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "host.docker.internal:9092")
+KAFKA_BOOTSTRAP = os.getenv(
+    "KAFKA_BOOTSTRAP_SERVERS", "host.docker.internal:9092")
 
 # ✅ Added new order and kitchen topics
 VALID_TOPICS = {
@@ -30,11 +31,11 @@ VALID_TOPICS = {
     "kitchen.ticket.preparing",
     "kitchen.ticket.ready",
     "kitchen.ticket.cancelled",
-    "restaurant.created",  # NEW
-    "restaurant.updated",   # NEW
-    "restaurant.table.upsert",  # NEW
-    "table.session.started",   # NEW
-    "table.session.closed",    # NEW
+    "restaurant.created",
+    "restaurant.updated",
+    "restaurant.table.upsert",
+    "table.session.started",
+    "table.session.closed",
     "user.created",
     "user.updated"
 
@@ -52,13 +53,13 @@ TOPIC_HANDLERS = {
     "kitchen.ticket.preparing": handle_order_status_update,
     "kitchen.ticket.ready":     handle_order_status_update,
     "kitchen.ticket.cancelled": handle_order_status_update,
-    "restaurant.created":       handle_restaurant_event,  
-    "restaurant.updated":       handle_restaurant_event,  
+    "restaurant.created":       handle_restaurant_event,
+    "restaurant.updated":       handle_restaurant_event,
     "restaurant.table.upsert":  handle_table_upsert,
     "table.session.started":    handle_table_session,
     "table.session.closed":     handle_table_session,
-    "user.created":             handle_user_event,  
-    "user.updated":             handle_user_event, 
+    "user.created":             handle_user_event,
+    "user.updated":             handle_user_event,
 }
 
 running = True

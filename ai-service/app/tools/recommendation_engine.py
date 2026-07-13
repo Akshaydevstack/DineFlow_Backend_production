@@ -1,27 +1,15 @@
-"""
-DineFlowOS — AI Recommendations (final)
-File: ai-service/app/agents/recommendations.py
-"""
-
 import random
 import json
 import hashlib
 import numpy as np
-import redis
-import os
+from app.cache.redis import redis_client
 from sentence_transformers import SentenceTransformer
 
 # ---------------------------------------------------------------------------
-# Model + Redis — loaded once at startup, shared across all requests
+# Model — loaded once at startup, shared across all requests
 # ---------------------------------------------------------------------------
 model = SentenceTransformer("/app/models/all-MiniLM-L6-v2")
 
-redis_client = redis.Redis(
-    host=os.getenv("REDIS_HOST", "redis.dineflow-production.svc.cluster.local"),
-    port=int(os.getenv("REDIS_PORT", 6379)),
-    db=0,
-    decode_responses=True
-)
 
 dish_embedding_cache: dict = {}
 

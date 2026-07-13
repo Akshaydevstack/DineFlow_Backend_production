@@ -2,7 +2,6 @@ import os
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from app.routers import views
@@ -20,6 +19,7 @@ async def lifespan(app: FastAPI):
 
 # 3. Determine environment to secure API Docs
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+
 is_production = ENVIRONMENT == "production"
 
 app = FastAPI(

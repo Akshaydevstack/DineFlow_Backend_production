@@ -1,12 +1,6 @@
-import redis
 import json
-import os
 
-redis_client = redis.Redis(
-    host=os.getenv("REDIS_HOST", "localhost"),
-    port=6379,
-    decode_responses=True
-)
+from app.cache.redis import redis_client
 
 def get_session(user_id, restaurant_id):
     key = f"session:{user_id}:{restaurant_id}"

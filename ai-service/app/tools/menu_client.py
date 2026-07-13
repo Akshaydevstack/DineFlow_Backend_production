@@ -1,33 +1,14 @@
 import httpx
 import json
 import os
-import redis
+from app.cache.redis import redis_client
 
-# MENU_SERVICE_URL = os.getenv(
-#     "MENU_SERVICE_URL",
-#     "http://menu-service.dineflow-dev.svc.cluster.local:8000"
-# )
-
-# redis_client = redis.Redis(
-#     host=os.getenv("REDIS_HOST", "localhost"),
-#     port=int(os.getenv("REDIS_PORT", 6379)),
-#     db=0,
-#     decode_responses=True
-# )
 
 
 MENU_SERVICE_URL = os.getenv(
     "MENU_SERVICE_URL",
     "http://menu-service.dineflow-production.svc.cluster.local:8000"
 )
-
-redis_client = redis.Redis(
-    host=os.getenv("REDIS_HOST", "redis.dineflow-production.svc.cluster.local"),
-    port=int(os.getenv("REDIS_PORT", 6379)),
-    db=0,
-    decode_responses=True
-)
-
 
 async def fetch_menu_dishes(restaurant_id: str, user_id: str = None, user_role: str = None):
     cache_key = f"menu_dishes:{restaurant_id}"
