@@ -1,5 +1,5 @@
 from langchain_core.tools import tool
-from app.db.pgvector_client import get_restaurant_profile_db, check_table_availability_db
+from app.repositories.db.pgvector import get_restaurant_profile_db, check_table_availability_db
 
 @tool
 def tool_get_restaurant_info(restaurant_id: str) -> str:

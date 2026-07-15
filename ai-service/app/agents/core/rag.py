@@ -1,9 +1,13 @@
 # app/agents/core/rag.py
+import os
 from sentence_transformers import SentenceTransformer
-from app.db.pgvector_client import search_menu, search_order_history
+from app.repositories.db.pgvector import search_menu, search_order_history
 
 # Same model as ingest.py — MUST match!
-embedder = SentenceTransformer("/app/models/all-MiniLM-L6-v2")
+model_path = "/app/models/all-MiniLM-L6-v2"
+if not os.path.exists(model_path):
+    model_path = "all-MiniLM-L6-v2"
+embedder = SentenceTransformer(model_path)
 
 def search_menu_rag(query: str, restaurant_id: str, top_k: int = 5) -> list:
     """

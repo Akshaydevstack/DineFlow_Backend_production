@@ -1,12 +1,14 @@
 from loguru import logger
-from app.db.ingest import (ingest_menu,
-                           ingest_order_history,
-                           update_order_status,
-                           ingest_restaurants,
-                           ingest_tables,
-                           ingest_user_profile,
-                           update_table_session_status)
-from app.db.pgvector_client import (
+from app.services.ingest_service import (
+    ingest_menu,
+    ingest_order_history,
+    update_order_status,
+    ingest_restaurants,
+    ingest_tables,
+    ingest_user_profile,
+    update_table_session_status
+)
+from app.repositories.db.pgvector import (
     get_dish_version,
     update_dish_version,
     mark_dish_unavailable,

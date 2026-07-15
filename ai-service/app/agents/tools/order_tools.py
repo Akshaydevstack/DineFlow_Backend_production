@@ -5,17 +5,15 @@ import uuid
 import asyncio
 import concurrent.futures
 from langchain_core.tools import tool
-from app.agents.core.memory import get_session
 
-from app.agents.tools.cart_client import (
+
+from app.core import config
+from app.repositories.clients.cart_client import (
     tool_view_cart as _view,
     tool_clear_cart as _clear,
 )
 
-ORDERS_SERVICE_URL = os.getenv(
-    "ORDERS_SERVICE_URL",
-    "http://order-service.dineflow-production.svc.cluster.local:8000"
-)
+ORDERS_SERVICE_URL = config.ORDERS_SERVICE_URL
 
 def _run_safe(coro):
     """Safely execute async functions within LangGraph."""

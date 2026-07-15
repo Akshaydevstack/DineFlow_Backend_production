@@ -1,25 +1,19 @@
 import json
-import os
-import psycopg2
 from psycopg2 import pool
 from contextlib import contextmanager
 from functools import lru_cache 
 from loguru import logger
-
-# ---------------------------------------------------
-# Connection Pooling
-# ---------------------------------------------------
+from app.core import config
 
 try:
     db_pool = pool.ThreadedConnectionPool(
         minconn=1,
         maxconn=20, 
-        host=os.getenv("POSTGRES_HOST", "localhost"),
-        port=os.getenv("POSTGRES_PORT", 5432),
-        dbname=os.getenv("POSTGRES_DB", "postgres"), 
-        user=os.getenv("POSTGRES_USER", "postgres"),
-        password=os.getenv("POSTGRES_PASSWORD", "postgres"),
-        
+        host=config.POSTGRES_HOST,
+        port=config.POSTGRES_PORT,
+        dbname=config.POSTGRES_DB, 
+        user=config.POSTGRES_USER,
+        password=config.POSTGRES_PASSWORD,
         options="-c search_path=ai_service,extensions,public"
     )
     logger.info("✅ Database Connection Pool Created (Schema: ai_service)")
@@ -27,7 +21,6 @@ try:
 except Exception as e:
     logger.error(f"Failed to create DB pool: {e}")
     db_pool = None
-
 
 
 @contextmanager
@@ -43,11 +36,6 @@ def get_db_connection():
         db_pool.putconn(conn) 
 
 
-
-# ---------------------------------------------------
-# Setup Tables (run once)
-# ---------------------------------------------------
-
 def setup_vector_tables():
     """
     Creates the isolated schema, the pgvector extension (in public), 
@@ -55,15 +43,8 @@ def setup_vector_tables():
     """
     with get_db_connection() as conn:
         with conn.cursor() as cur:
-            # 1. Ensure the isolated schema exists
             cur.execute("CREATE SCHEMA IF NOT EXISTS ai_service;")
-
-            # 2. Enable pgvector extension globally (must be in public)
             cur.execute("CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public;")
-
-            # ---------------------------------------------------
-            # EXPLICITLY target ai_service for all table creations
-            # ---------------------------------------------------
 
             # Table 1: Menu items
             cur.execute("""
@@ -74,7 +55,6 @@ def setup_vector_tables():
                     content       TEXT NOT NULL,
                     embedding     vector(384),
                     metadata      JSONB DEFAULT '{}',
-
                     UNIQUE (dish_id, restaurant_id)
                 );
             """)
@@ -142,7 +122,7 @@ def setup_vector_tables():
                 WITH (lists = 100);
             """)
 
-             # Table 5: user data
+            # Table 5: user data
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS ai_service.user_embeddings (
                     id            SERIAL PRIMARY KEY,
@@ -162,11 +142,7 @@ def setup_vector_tables():
 
             conn.commit()
     print("✅ Vector tables successfully isolated in ai_service schema!")
-    
 
-# ---------------------------------------------------
-# Insert / Upsert Functions
-# ---------------------------------------------------
 
 def insert_menu_item(dish_id, restaurant_id, content, embedding, metadata):
     """Upsert a dish embedding into pgvector."""
@@ -191,7 +167,6 @@ def insert_menu_item(dish_id, restaurant_id, content, embedding, metadata):
             conn.commit()
 
 
-
 def insert_order_history(user_id, restaurant_id, content, embedding, metadata):
     """Store one order history embedding into pgvector."""
     with get_db_connection() as conn:
@@ -208,7 +183,6 @@ def insert_order_history(user_id, restaurant_id, content, embedding, metadata):
                 json.dumps(metadata) if isinstance(metadata, dict) else metadata,
             ))
             conn.commit()
-
 
 
 def insert_restaurant_info(public_id, content, embedding, metadata):
@@ -278,10 +252,6 @@ def insert_user_info(user_id, content, embedding, metadata):
             conn.commit()
 
 
-# ---------------------------------------------------
-# Search Functions
-# ---------------------------------------------------
-
 def search_menu(query_embedding, restaurant_id, top_k=5):
     """
     Find top_k most similar dishes to the query embedding.
@@ -342,10 +312,6 @@ def search_order_history(query_embedding, user_id, top_k=3):
         for row in results
     ]
 
-
-# ---------------------------------------------------
-# Version Guard Functions (used by Kafka handlers)
-# ---------------------------------------------------
 
 def get_dish_version(dish_id: str, restaurant_id: str):
     """Returns current version (int) of a dish in pgvector."""
@@ -472,7 +438,6 @@ def update_table_record(table_public_id: str, restaurant_id: str, content: str, 
             conn.commit()
 
 
-# ⚡ Caching applied to static restaurant data
 @lru_cache(maxsize=128)
 def get_restaurant_metadata(public_id: str) -> dict:
     """Retrieves the restaurant metadata JSON from the vector DB."""
@@ -492,7 +457,6 @@ def get_restaurant_metadata(public_id: str) -> dict:
     return None
 
 
-# ⚡ Caching applied to static restaurant data
 @lru_cache(maxsize=128)
 def get_restaurant_profile_db(restaurant_id: str) -> str:
     """Fetches the full text profile of the restaurant."""

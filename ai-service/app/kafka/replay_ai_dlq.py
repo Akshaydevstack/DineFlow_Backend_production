@@ -10,7 +10,7 @@ from .handlers import (
     handle_restaurant_event, handle_table_upsert, handle_table_session, handle_user_event
 )
 
-from app.db.pgvector_client import setup_vector_tables
+from app.repositories.db.pgvector import setup_vector_tables
 
 # --------------------------------------------------
 # Config

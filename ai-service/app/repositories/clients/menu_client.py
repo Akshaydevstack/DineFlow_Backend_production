@@ -1,16 +1,9 @@
 import httpx
 import json
-import os
-from app.cache.redis import redis_client
+from app.core import config
+from app.repositories.db.redis import redis_client
 
-
-
-MENU_SERVICE_URL = os.getenv(
-    "MENU_SERVICE_URL",
-    "http://menu-service.dineflow-production.svc.cluster.local:8000"
-)
-
-async def fetch_menu_dishes(restaurant_id: str, user_id: str = None, user_role: str = None):
+async def fetch_menu_dishes(restaurant_id: str, user_id: str = None, user_role: str = None) -> list:
     cache_key = f"menu_dishes:{restaurant_id}"
 
     # Check cache first
@@ -22,7 +15,7 @@ async def fetch_menu_dishes(restaurant_id: str, user_id: str = None, user_role: 
         print(f"Redis read error: {e}")
 
     # Fetch from menu service
-    url = f"{MENU_SERVICE_URL}/api/menu/internal/ai/dishes/list/"
+    url = f"{config.MENU_SERVICE_URL}/api/menu/internal/ai/dishes/list/"
     headers = {"X-Restaurant-Id": restaurant_id, "X-Internal-Call": "true"}
 
     if user_id:

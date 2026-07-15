@@ -2,11 +2,11 @@ import asyncio
 import concurrent.futures
 from langchain_core.tools import tool
 
-from app.tools.recommendation_engine import get_ai_recommendations_sync
-from app.tools.dynamo_tools import get_user_history
-from app.tools.menu_client import fetch_menu_dishes
-from app.tools.cart_client import fetch_user_cart
-from app.tools.order_client import fetch_user_orders
+from app.services.recommendation_engine import get_ai_recommendations_sync
+from app.repositories.db.dynamo import get_user_history
+from app.repositories.clients.menu_client import fetch_menu_dishes
+from app.repositories.clients.cart_client import fetch_user_cart
+from app.repositories.clients.order_client import fetch_user_orders
 
 def _run_safe(coro):
     """Safely execute async functions within LangGraph."""

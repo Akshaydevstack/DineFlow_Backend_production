@@ -1,14 +1,9 @@
 import httpx
 import json
-import os
-from app.cache.redis import redis_client
+from app.core import config
+from app.repositories.db.redis import redis_client
 
-ORDER_SERVICE_URL = os.getenv(
-    "ORDERS_SERVICE_URL",
-    "http://order-service.dineflow-production.svc.cluster.local:8000"
-)
-
-async def fetch_user_orders(user_id: str, restaurant_id: str):
+async def fetch_user_orders(user_id: str, restaurant_id: str) -> list:
     cache_key = f"user_orders:{user_id}:{restaurant_id}"
 
     # Check cache first
@@ -20,7 +15,7 @@ async def fetch_user_orders(user_id: str, restaurant_id: str):
         print(f"Redis read error: {e}")
 
     # Fetch from order service
-    url = f"{ORDER_SERVICE_URL}/api/order/internal/ai/orders/"
+    url = f"{config.ORDERS_SERVICE_URL}/api/order/internal/ai/orders/"
     headers = {
         "X-User-Id": user_id,
         "X-Restaurant-Id": restaurant_id,

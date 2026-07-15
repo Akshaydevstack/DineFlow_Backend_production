@@ -3,7 +3,7 @@ import asyncio
 import concurrent.futures
 from langchain_core.tools import tool
 
-from app.agents.tools.cart_client import (
+from app.repositories.clients.cart_client import (
     tool_add_to_cart      as _add,
     tool_update_cart      as _update,
     tool_remove_from_cart as _remove,

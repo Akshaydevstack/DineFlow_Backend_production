@@ -1,6 +1,6 @@
 import json
 
-from app.cache.redis import redis_client
+from app.repositories.db.redis import redis_client
 
 def get_session(user_id, restaurant_id):
     key = f"session:{user_id}:{restaurant_id}"

@@ -2,20 +2,20 @@ import random
 import json
 import hashlib
 import numpy as np
-from app.cache.redis import redis_client
 from sentence_transformers import SentenceTransformer
+from app.repositories.db.redis import redis_client
 
-# ---------------------------------------------------------------------------
+import os
+
 # Model — loaded once at startup, shared across all requests
-# ---------------------------------------------------------------------------
-model = SentenceTransformer("/app/models/all-MiniLM-L6-v2")
-
+model_path = "/app/models/all-MiniLM-L6-v2"
+if not os.path.exists(model_path):
+    model_path = "all-MiniLM-L6-v2"
+model = SentenceTransformer(model_path)
 
 dish_embedding_cache: dict = {}
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+
 def dish_to_text(dish: dict) -> str:
     """Converts a dish dict into a descriptive text string for embedding.
        Handles both API formats (boolean flags) and RAG DB formats (tags list).
@@ -69,11 +69,7 @@ def make_cache_key(user_id: str, restaurant_id: str, views: list, cart: list, or
     return f"recommendations:{hash_key}"
 
 
-# ---------------------------------------------------------------------------
-# Main recommendation function
-# ---------------------------------------------------------------------------
 def get_ai_recommendations_sync(views, cart, orders, dishes, user_id: str = "", restaurant_id: str = "") -> list:
-
     if not dishes:
         return []
 
@@ -105,7 +101,7 @@ def get_ai_recommendations_sync(views, cart, orders, dishes, user_id: str = "", 
         txt = dish_to_text(o)
         if txt: profile_parts.extend([txt] * 5)
 
-    # ✅ Fallback: Sort by rating AND total orders
+    # Fallback: Sort by rating AND total orders
     if not profile_parts:
         return sorted(
             dishes,

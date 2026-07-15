@@ -3,19 +3,24 @@ from datetime import datetime
 from sentence_transformers import SentenceTransformer
 from loguru import logger
 
-from .pgvector_client import (setup_vector_tables,
-                              insert_menu_item,
-                              insert_order_history,
-                              get_order_metadata,
-                              update_order_record,
-                              insert_restaurant_info,
-                              insert_table_info, 
-                              get_table_metadata, 
-                              update_table_record,
-                              insert_user_info)
+from app.repositories.db.pgvector import (
+    setup_vector_tables,
+    insert_menu_item,
+    insert_order_history,
+    get_order_metadata,
+    update_order_record,
+    insert_restaurant_info,
+    insert_table_info, 
+    get_table_metadata, 
+    update_table_record,
+    insert_user_info
+)
 
-embedder = SentenceTransformer("/app/models/all-MiniLM-L6-v2")
-
+import os
+model_path = "/app/models/all-MiniLM-L6-v2"
+if not os.path.exists(model_path):
+    model_path = "all-MiniLM-L6-v2"
+embedder = SentenceTransformer(model_path)
 
 
 def build_dish_text(dish: dict) -> str:
@@ -27,7 +32,6 @@ def build_dish_text(dish: dict) -> str:
         f"Price: ₹{dish.get('price', '')}",
     ]
     
-    # Add semantic context if item is discounted
     if dish.get("original_price") and dish.get("original_price") > dish.get("price", 0):
         parts.append(f"Original Price: ₹{dish.get('original_price')} (Currently Discounted)")
         
@@ -36,16 +40,13 @@ def build_dish_text(dish: dict) -> str:
     if dish.get("prep_time"):
         parts.append(f"Prep time: {dish.get('prep_time')} mins")
         
-    # Add semantic context for ratings
     if dish.get("average_rating", 0) > 0:
         parts.append(f"Rating: {dish.get('average_rating')} stars ({dish.get('review_count', 0)} reviews)")
         
     if dish.get("total_orders", 0) > 0:
         parts.append(f"Ordered {dish.get('total_orders')} times")
 
-    # ✅ Added explicit semantic availability
     parts.append("Currently Available" if dish.get("available") else "Currently Unavailable (Sold Out)")
-
     parts.append(f"Last Updated: {dish.get('occurred_at', '')}")
     
     return " | ".join(filter(None, parts))
@@ -87,7 +88,6 @@ def ingest_menu(dishes: list, restaurant_id: str):
 
 def build_order_text(order: dict) -> str:
     """Creates a semantic string representing a past order for the AI to search."""
-    
     items = ", ".join([
         f"{i.get('name', i.get('dish_name', 'Item'))} x{i.get('quantity', 1)}" 
         for i in order.get("items", [])
@@ -124,7 +124,6 @@ def ingest_order_history(orders: list, user_id: str, restaurant_id: str):
         )
 
 
-
 def update_order_status(order_id: str, restaurant_id: str, status: str):
     """
     Fetches the existing order, updates the status, re-generates the text 
@@ -143,10 +142,7 @@ def update_order_status(order_id: str, restaurant_id: str, status: str):
         return
 
     existing_metadata["status"] = status
-
     new_text = build_order_text(existing_metadata)
-
-  
     new_embedding = embedder.encode(new_text).tolist()
 
     update_order_record(
@@ -159,8 +155,6 @@ def update_order_status(order_id: str, restaurant_id: str, status: str):
 
     logger.info(
         f"🔄 Vector DB updated | Order {order_id} text and embedding synced with status: {status}")
-
-
 
 
 def build_restaurant_text(rest: dict) -> str:
@@ -178,11 +172,8 @@ def build_restaurant_text(rest: dict) -> str:
     return " | ".join(filter(None, parts))
 
 
-
 def ingest_restaurants(restaurants: list):
-    
     setup_vector_tables() 
-    
     for rest in restaurants:
         text = build_restaurant_text(rest)
         embedding = embedder.encode(text).tolist()
@@ -204,17 +195,11 @@ def ingest_restaurants(restaurants: list):
         )
 
 
-# --------------------------------------------------
-# Table & Session Ingestion
-# --------------------------------------------------
-
 def build_table_text(table: dict) -> str:
     """Creates a semantic string representing a specific table."""
-    
     is_occupied = table.get('is_occupied', False)
     is_reserved = table.get('is_reserved_manual', False)
     
-    # Mirror the exact logic from the AI tool
     if is_occupied:
         status = "Occupied"
     elif is_reserved:
@@ -232,11 +217,11 @@ def build_table_text(table: dict) -> str:
     
     return " | ".join(filter(None, parts))
 
+
 def ingest_tables(tables: list):
     """Handles the restaurant.table.upsert event."""
     setup_vector_tables()
     for table in tables:
-        # Default to available if not specified
         table['is_occupied'] = table.get('is_occupied', False)
         
         text = build_table_text(table)
@@ -249,7 +234,7 @@ def ingest_tables(tables: list):
             "table_type": table.get("table_type"),
             "is_active": table.get("is_active", True),
             "is_occupied": table["is_occupied"],
-            "is_reserved_manual": table.get("is_reserved_manual", False), # <-- Added False default
+            "is_reserved_manual": table.get("is_reserved_manual", False),
             "current_user_id": table.get("current_user_id")
         }
 
@@ -274,7 +259,6 @@ def update_table_session_status(table_public_id: str, restaurant_id: str, is_occ
         logger.warning(f"⚠️ Cannot update session status: Table {table_public_id} not found in DB.")
         return
 
-    # Idempotency Check
     if existing_metadata.get("is_occupied") == is_occupied:
         logger.info(f"⏭️ Skipping update | Table {table_public_id} is already occupied={is_occupied}")
         return
@@ -282,7 +266,6 @@ def update_table_session_status(table_public_id: str, restaurant_id: str, is_occ
     existing_metadata["is_occupied"] = is_occupied
     existing_metadata["current_user_id"] = user_id if is_occupied else None
 
-    # Re-build text and vector
     new_text = build_table_text(existing_metadata)
     new_embedding = embedder.encode(new_text).tolist()
 
@@ -296,10 +279,6 @@ def update_table_session_status(table_public_id: str, restaurant_id: str, is_occ
     
     state_str = "Occupied" if is_occupied else "Available"
     logger.info(f"🔄 Vector DB updated | Table {table_public_id} status changed to: {state_str}")
-
-
-
-
 
 
 def build_user_text(user_payload: dict) -> str:
@@ -318,7 +297,7 @@ def ingest_user_profile(payload: dict):
     Handles the user.created Kafka event.
     Converts the Kafka payload into a vector and stores it.
     """
-    setup_vector_tables() # Ensures tables exist
+    setup_vector_tables()
     
     text = build_user_text(payload)
     embedding = embedder.encode(text).tolist()

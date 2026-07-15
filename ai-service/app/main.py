@@ -1,10 +1,11 @@
-import os
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
-from app.routers import views
+
+from app.core import config
+from app.api.router import api_router
 
 # 1. Setup basic logging
 logging.basicConfig(level=logging.INFO)
@@ -17,18 +18,13 @@ async def lifespan(app: FastAPI):
     yield 
     logger.info("Shutting down DineFlow AI Service...")
 
-# 3. Determine environment to secure API Docs
-ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
-
-is_production = ENVIRONMENT == "production"
-
 app = FastAPI(
     title="DineFlow AI Service",
     version="1.0.0",
     root_path="/api/ai",
     lifespan=lifespan,
-    docs_url=None if is_production else "/docs",
-    redoc_url=None if is_production else "/redoc",
+    docs_url=None if config.IS_PRODUCTION else "/docs",
+    redoc_url=None if config.IS_PRODUCTION else "/redoc",
 )
 
 # 5. GZip Middleware
@@ -51,4 +47,4 @@ def root():
 def health():
     return {"status": "ok"}
 
-app.include_router(views.router)
+app.include_router(api_router)

@@ -18,7 +18,7 @@ from app.agents.core.memory import get_session, save_session
 from app.agents.tools.email_tools import tool_send_receipt, tool_send_feedback
 
 # ✅ Import DB fetchers for real-time context injection
-from app.db.pgvector_client import get_restaurant_metadata, get_table_metadata, get_user_metadata
+from app.repositories.db.pgvector import get_restaurant_metadata, get_table_metadata, get_user_metadata
 
 TOOLS = [
     tool_search_menu,

@@ -9,7 +9,7 @@ from .handlers import (handle_dish_event, handle_order_event, handle_order_statu
                        handle_restaurant_event, handle_table_upsert, handle_table_session, handle_user_event)
 
 from .dlq_producer import send_to_dlq
-from app.db.pgvector_client import setup_vector_tables
+from app.repositories.db.pgvector import setup_vector_tables
 
 # --------------------------------------------------
 # Config

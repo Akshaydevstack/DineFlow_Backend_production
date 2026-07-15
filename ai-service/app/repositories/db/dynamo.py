@@ -1,22 +1,20 @@
 import boto3
 import time
 import json
-import os
-from app.cache.redis import redis_client
 from decimal import Decimal
 from boto3.dynamodb.conditions import Key
-
-
+from app.core import config
+from app.repositories.db.redis import redis_client
 
 dynamodb = boto3.resource(
     "dynamodb",
-    region_name=os.getenv("AWS_DEFAULT_REGION", "ap-south-1")
+    region_name=config.AWS_DEFAULT_REGION
 )
 
 table = dynamodb.Table("dish_views")
 
 
-def store_dish_view(user_id, dish, x_restaurant_id):
+def store_dish_view(user_id: str, dish: dict, x_restaurant_id: str):
     item = {
         "user_id": str(user_id),
         "timestamp": int(time.time()),
@@ -44,7 +42,7 @@ def store_dish_view(user_id, dish, x_restaurant_id):
         print(f"Redis invalidation error: {e}")
 
 
-def get_user_history(user_id: str, limit: int = 50):
+def get_user_history(user_id: str, limit: int = 50) -> list:
     cache_key = f"user_history:{user_id}"
 
     # Check cache first
@@ -74,4 +72,3 @@ def get_user_history(user_id: str, limit: int = 50):
     except Exception as e:
         print("DynamoDB error:", e)
         return []
-    

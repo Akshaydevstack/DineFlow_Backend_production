@@ -12,7 +12,8 @@ from langchain_core.tools import tool
 from loguru import logger
 
 
-from app.db.pgvector_client import (
+from app.core import config
+from app.repositories.db.pgvector import (
     get_order_metadata, 
     get_restaurant_metadata, 
     get_restaurant_profile_db,
@@ -54,10 +55,10 @@ def tool_send_receipt(user_id: str, restaurant_id: str, email_address: str, orde
     CRITICAL: If you just placed this order using `place_order`, you MUST pass the exact JSON string or object output 
     from `place_order` into the `recent_order_json` parameter. If it's an older order, leave it blank.
     """
-    smtp_server = os.getenv("SMTP_SERVER", "smtp.gmail.com")
-    smtp_port = int(os.getenv("SMTP_PORT", 587))
-    sender_email = os.getenv("SMTP_USERNAME")    
-    sender_password = os.getenv("SMTP_PASSWORD") 
+    smtp_server = config.SMTP_SERVER
+    smtp_port = config.SMTP_PORT
+    sender_email = config.SMTP_USERNAME    
+    sender_password = config.SMTP_PASSWORD 
 
     if not sender_email or not sender_password:
         logger.error("SMTP credentials are missing from environment variables.")
@@ -271,10 +272,10 @@ def tool_send_feedback(user_id: str, restaurant_id: str, user_name: str, user_em
     Sends a customer's suggestion, feedback, or complaint directly to the restaurant admin's email.
     Use this when a user wants to leave a review, suggest a new dish, or complain about their experience.
     """
-    smtp_server = os.getenv("SMTP_SERVER", "smtp.gmail.com")
-    smtp_port = int(os.getenv("SMTP_PORT", 587))
-    sender_email = os.getenv("SMTP_USERNAME")    
-    sender_password = os.getenv("SMTP_PASSWORD") 
+    smtp_server = config.SMTP_SERVER
+    smtp_port = config.SMTP_PORT
+    sender_email = config.SMTP_USERNAME    
+    sender_password = config.SMTP_PASSWORD 
 
     if not sender_email or not sender_password:
         logger.error("SMTP credentials are missing. Cannot send feedback.")
